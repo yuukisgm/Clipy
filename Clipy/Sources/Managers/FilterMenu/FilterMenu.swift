@@ -161,7 +161,7 @@ fileprivate extension FilterMenu {
 }
 
 // MARK: - Extension
-fileprivate extension String {
+extension String {
     func trim(with prefix: String, keyWord: String, maxWidth: CGFloat, fontSize: CGFloat) -> NSAttributedString {
         let font = NSFont.systemFont(ofSize: fontSize)
         let attributes: [NSAttributedString.Key: Any] = [
@@ -179,6 +179,20 @@ fileprivate extension String {
         let prefixWidth = prefix.sizeOf(attributes: attributes).width
         let att = NSMutableAttributedString(string: prefix, attributes: attributes)
         let content = trim.truncateToSize(size: .init(width: maxWidth - prefixWidth, height: ceil(font.lineHeight * 1.2)), ellipsis: "...", keyWord: keyWord, attributes: attributes, keyWordAttributes: keyAttributes)
+        att.append(content)
+        return att
+    }
+
+    // フォントのみ指定（色なし）。メニューハイライト時に文字色が正しく反転する。
+    func trimForMenuItem(with prefix: String, maxWidth: CGFloat, fontSize: CGFloat) -> NSAttributedString {
+        let font = NSFont.systemFont(ofSize: fontSize)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+
+        let trim = replace(pattern: "\\s+", withTemplate: " ").trim
+
+        let prefixWidth = prefix.sizeOf(attributes: attributes).width
+        let att = NSMutableAttributedString(string: prefix, attributes: attributes)
+        let content = trim.truncateToSize(size: .init(width: maxWidth - prefixWidth, height: ceil(font.lineHeight * 1.2)), ellipsis: "...", keyWord: "", attributes: attributes, keyWordAttributes: attributes)
         att.append(content)
         return att
     }
