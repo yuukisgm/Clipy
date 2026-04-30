@@ -38,7 +38,6 @@ final class MenuManager: NSObject {
     fileprivate let disposeBag = DisposeBag()
     fileprivate let notificationCenter = NotificationCenter.default
     fileprivate let kMaxKeyEquivalents = 10
-    fileprivate let shortenSymbol = "..."
     // Realm
     fileprivate let realm = try! Realm()
     fileprivate var clipToken: NotificationToken?
@@ -77,12 +76,16 @@ extension MenuManager {
         case .history:
             FilterMenu(title: L10n.history).popUp(positioning: nil, at: pt, in: statusItem?.button)
         case .snippet:
+            let appearance = statusItem?.button?.effectiveAppearance
+            snippetMenu?.appearance = appearance
+            snippetMenu?.items.forEach { $0.submenu?.appearance = appearance }
             snippetMenu?.popUp(positioning: nil, at: pt, in: statusItem?.button)
         }
     }
 
     func popUpSnippetFolder(_ folder: CPYFolder) {
         let folderMenu = NSMenu(title: folder.title)
+        folderMenu.appearance = statusItem?.button?.effectiveAppearance ?? NSApp.effectiveAppearance
         // Folder title
         let labelItem = NSMenuItem(title: folder.title, action: nil)
         labelItem.isEnabled = false
@@ -97,7 +100,13 @@ extension MenuManager {
                 folderMenu.addItem(subMenuItem)
                 index += 1
             }
-        folderMenu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        // 履歴メニューと同じ位置計算でステータスバーボタン基準に表示
+        let buttonOrigin = statusItem?.button?.window?.frame.origin
+        let pt = buttonOrigin.flatMap { origin -> CGPoint in
+            let mouse = NSEvent.mouseLocation
+            return NSPoint(x: mouse.x - origin.x, y: origin.y - mouse.y)
+        } ?? .zero
+        folderMenu.popUp(positioning: nil, at: pt, in: statusItem?.button)
     }
 }
 
@@ -167,10 +176,6 @@ private extension MenuManager {
         addSnippetItems(snippetMenu!, separateMenu: false)
     }
 
-    func menuItemTitle(_ title: String, listNumber: NSInteger, isMarkWithNumber: Bool) -> String {
-        return (isMarkWithNumber) ? "\(listNumber). \(title)" : title
-    }
-
     func makeSubmenuItem(_ count: Int, start: Int, end: Int, numberOfItems: Int) -> NSMenuItem {
         var count = count
         if start == 0 {
@@ -192,27 +197,6 @@ private extension MenuManager {
         return subMenuItem
     }
 
-    func trimTitle(_ title: String?) -> String {
-        if title == nil { return "" }
-        let theString = title!.trimmingCharacters(in: .whitespacesAndNewlines) as NSString
-
-        let aRange = NSRange(location: 0, length: 0)
-        var lineStart = 0, lineEnd = 0, contentsEnd = 0
-        theString.getLineStart(&lineStart, end: &lineEnd, contentsEnd: &contentsEnd, for: aRange)
-
-        var titleString = (lineEnd == theString.length) ? theString as String : theString.substring(to: contentsEnd)
-
-        var maxMenuItemTitleLength = 20
-        if maxMenuItemTitleLength < shortenSymbol.count {
-            maxMenuItemTitleLength = shortenSymbol.count
-        }
-
-        if titleString.utf16.count > maxMenuItemTitleLength {
-            titleString = (titleString as NSString).substring(to: maxMenuItemTitleLength - shortenSymbol.count) + shortenSymbol
-        }
-
-        return titleString as String
-    }
 }
 
 // MARK: - Snippets
@@ -255,16 +239,18 @@ private extension MenuManager {
     }
 
     func makeSnippetMenuItem(_ snippet: CPYSnippet, listNumber: Int) -> NSMenuItem {
-        let isMarkWithNumber = AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers)
-        let isShowIcon = AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.showIconInTheMenu)
+        let defaults = AppEnvironment.current.defaults
+        let isMarkWithNumber = defaults.bool(forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers)
+        let maxWidth = CGFloat(defaults.float(forKey: Preferences.General.maxWidthOfMenuItem))
+        let fontSize = CGFloat(defaults.float(forKey: Preferences.General.menuFontSize))
 
-        let title = trimTitle(snippet.title)
-        let titleWithMark = menuItemTitle(title, listNumber: listNumber, isMarkWithNumber: isMarkWithNumber)
+        let prefix = isMarkWithNumber ? "\(listNumber). " : ""
+        let attributedTitle = snippet.title.trimForMenuItem(with: prefix, maxWidth: maxWidth, fontSize: fontSize)
 
-        let menuItem = NSMenuItem(title: titleWithMark, action: #selector(AppDelegate.selectSnippetMenuItem(_:)), keyEquivalent: "")
+        let menuItem = NSMenuItem(title: attributedTitle.string, action: #selector(AppDelegate.selectSnippetMenuItem(_:)), keyEquivalent: "")
+        menuItem.attributedTitle = attributedTitle
         menuItem.representedObject = snippet.identifier
         menuItem.toolTip = snippet.content
-        menuItem.image = (isShowIcon) ? snippetIcon : nil
 
         return menuItem
     }
