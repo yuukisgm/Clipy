@@ -59,15 +59,14 @@ extension PasteService {
         guard !clip.isInvalidated else { return }
 
         do {
-            let data = try Data(contentsOf: .init(fileURLWithPath: clip.dataPath))
-            let clipData = try JSONDecoder().decode(CPYClipData.self, from: data)
+            let clipData = try decodeClipData(from: clip)
 
             // Handling modifier actions
             let isPastePlainText = self.isPastePlainText
             let isPasteAndDeleteHistory = self.isPasteAndDeleteHistory
             let isDeleteHistory = self.isDeleteHistory
             guard isPastePlainText || isPasteAndDeleteHistory || isDeleteHistory else {
-                copyToPasteboard(with: clip)
+                copyToPasteboard(with: clipData)
                 paste()
                 return
             }
@@ -81,7 +80,7 @@ extension PasteService {
                 copyToPasteboard(with: clipData.stringValue)
                 paste()
             } else if isPasteAndDeleteHistory {
-                copyToPasteboard(with: clip)
+                copyToPasteboard(with: clipData)
                 paste()
             }
             // Delete clip
@@ -91,6 +90,11 @@ extension PasteService {
         } catch {
             lError(error)
         }
+    }
+
+    private func decodeClipData(from clip: CPYClip) throws -> CPYClipData {
+        let data = try Data(contentsOf: .init(fileURLWithPath: clip.dataPath))
+        return try JSONDecoder().decode(CPYClipData.self, from: data)
     }
 
     func copyToPasteboard(with string: String?) {
@@ -103,24 +107,21 @@ extension PasteService {
     }
 
     func copyToPasteboard(with clip: CPYClip) {
-        lock.lock(); defer { lock.unlock() }
-
         do {
-            let data = try Data(contentsOf: .init(fileURLWithPath: clip.dataPath))
-            let clipData = try JSONDecoder().decode(CPYClipData.self, from: data)
-            if isPastePlainText {
-                copyToPasteboard(with: clipData.stringValue)
-                return
-            }
-
-            let pasteboard = NSPasteboard.general
-            let types = clipData.content.compactMap(\.toPasteboardType)
-            pasteboard.declareTypes(types, owner: nil)
-            clipData.content.forEach { type in
-                type.recover(to: pasteboard)
-            }
+            copyToPasteboard(with: try decodeClipData(from: clip))
         } catch {
             lError(error)
+        }
+    }
+
+    private func copyToPasteboard(with clipData: CPYClipData) {
+        lock.lock(); defer { lock.unlock() }
+
+        let pasteboard = NSPasteboard.general
+        let types = clipData.content.compactMap(\.toPasteboardType)
+        pasteboard.declareTypes(types, owner: nil)
+        clipData.content.forEach { type in
+            type.recover(to: pasteboard)
         }
     }
 }
