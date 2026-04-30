@@ -13,12 +13,10 @@
 		605F367A2547BEAA00AE9701 /* FilterMenuConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605F36792547BEAA00AE9701 /* FilterMenuConfig.swift */; };
 		605F3899254828B500AE9701 /* String+Truncate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605F3898254828B500AE9701 /* String+Truncate.swift */; };
 		608423E029F234E9005F6B3C /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 608423DF29F234E9005F6B3C /* LaunchAtLogin */; };
-		608D9CAA2541934D00C9434B /* TextFieldMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608D9CA92541934D00C9434B /* TextFieldMenuItem.swift */; };
 		60BBF172254670CD0051EA70 /* SMLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60BBF171254670CD0051EA70 /* SMLog.swift */; };
 		60BBF2042546A9280051EA70 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60BBF2032546A9280051EA70 /* Preferences.swift */; };
 		60C260EA2A85E5C300240EAB /* NSColor+Ext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C260E92A85E5C300240EAB /* NSColor+Ext.swift */; };
 		60ECF5FA2544633500E34067 /* NSFont+Ext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60ECF5F92544633500E34067 /* NSFont+Ext.swift */; };
-		95178F012AD59BCD00928198 /* RunLoopLocalEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95178F002AD59BCD00928198 /* RunLoopLocalEventMonitor.swift */; };
 		952E3FE52ACE57C60005DDC2 /* CPYSnippetsEditorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952E3FE22ACE57C60005DDC2 /* CPYSnippetsEditorWindowController.swift */; };
 		952E3FE62ACE57C60005DDC2 /* CPYSnippetsEditorWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = ED674CAF825F4FB38C5A382A /* CPYSnippetsEditorWindowController.xib */; };
 		9536DC7B2A872C8A00270908 /* CPYClipData+FileType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9536DC7A2A872C8A00270908 /* CPYClipData+FileType.swift */; };
@@ -109,7 +107,6 @@
 		605F360B2546C9ED00AE9701 /* NSCoding+Ext.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "NSCoding+Ext.swift"; sourceTree = "<group>"; };
 		605F36792547BEAA00AE9701 /* FilterMenuConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterMenuConfig.swift; sourceTree = "<group>"; };
 		605F3898254828B500AE9701 /* String+Truncate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Truncate.swift"; sourceTree = "<group>"; };
-		608D9CA92541934D00C9434B /* TextFieldMenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextFieldMenuItem.swift; sourceTree = "<group>"; };
 		60BBF171254670CD0051EA70 /* SMLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMLog.swift; sourceTree = "<group>"; };
 		60BBF2032546A9280051EA70 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		60C260E92A85E5C300240EAB /* NSColor+Ext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSColor+Ext.swift"; sourceTree = "<group>"; };
@@ -117,7 +114,6 @@
 		704C63A582D8412E84253349 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/CPYPreferencesWindowController.strings; sourceTree = "<group>"; };
 		73A92F6DEE6CFF50A567CFEF /* Pods_Clipy.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Clipy.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7F96014F5A76472A8A224B74 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/CPYBetaPreferenceViewController.strings; sourceTree = "<group>"; };
-		95178F002AD59BCD00928198 /* RunLoopLocalEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLoopLocalEventMonitor.swift; sourceTree = "<group>"; };
 		952E3FE22ACE57C60005DDC2 /* CPYSnippetsEditorWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CPYSnippetsEditorWindowController.swift; sourceTree = "<group>"; };
 		952E3FE32ACE57C60005DDC2 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/CPYSnippetsEditorWindowController.xib; sourceTree = "<group>"; };
 		9536DC7A2A872C8A00270908 /* CPYClipData+FileType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CPYClipData+FileType.swift"; sourceTree = "<group>"; };
@@ -239,12 +235,10 @@
 		};
 		605F367C2547C07D00AE9701 /* FilterMenu */ = {
 			isa = PBXGroup;
-			children = (
-				605F36792547BEAA00AE9701 /* FilterMenuConfig.swift */,
-				603AD8FE25427ABA00A6C6F6 /* FilterMenu.swift */,
-				608D9CA92541934D00C9434B /* TextFieldMenuItem.swift */,
-				95178F002AD59BCD00928198 /* RunLoopLocalEventMonitor.swift */,
-			);
+				children = (
+					605F36792547BEAA00AE9701 /* FilterMenuConfig.swift */,
+					603AD8FE25427ABA00A6C6F6 /* FilterMenu.swift */,
+				);
 			path = FilterMenu;
 			sourceTree = "<group>";
 		};
@@ -720,7 +714,6 @@
 				FA1DB4B41DDCB452007F95C8 /* NSBundle+Version.swift in Sources */,
 				603AD8FF25427ABA00A6C6F6 /* FilterMenu.swift in Sources */,
 				FA1DB5171DDCB4C0007F95C8 /* CPYTypePreferenceViewController.swift in Sources */,
-				95178F012AD59BCD00928198 /* RunLoopLocalEventMonitor.swift in Sources */,
 				FA1DB4A21DDCB433007F95C8 /* AppDelegate.swift in Sources */,
 				FA1DB5141DDCB4C0007F95C8 /* CPYBetaPreferenceViewController.swift in Sources */,
 				FA1DB4BC1DDCB452007F95C8 /* Realm+NoCatch.swift in Sources */,
@@ -749,7 +742,6 @@
 				FA1DB4D71DDCB479007F95C8 /* CPYSnippet.swift in Sources */,
 				605F360C2546C9EE00AE9701 /* NSCoding+Ext.swift in Sources */,
 				551677E926C417310040C38D /* LoginServiceKit.swift in Sources */,
-				608D9CAA2541934D00C9434B /* TextFieldMenuItem.swift in Sources */,
 				FA10897E20EC22E200A3FEFC /* LocalizedStrings.swift in Sources */,
 				FA1DB4EB1DDCB49C007F95C8 /* CPYPlaceHolderTextView.swift in Sources */,
 				FA1DB4BB1DDCB452007F95C8 /* Realm+Migration.swift in Sources */,

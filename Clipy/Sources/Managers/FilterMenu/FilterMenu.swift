@@ -13,72 +13,34 @@
 import Foundation
 import Cocoa
 import RealmSwift
-import RxSwift
-import RxCocoa
-import RxOptional
 import PINCache
 
 class FilterMenu: NSMenu {
-    fileprivate let bag = DisposeBag()
     fileprivate let realm = try! Realm()
 
-    fileprivate let filterRelay = BehaviorRelay<String>(value: "")
-    fileprivate let clipResultsRelay = BehaviorRelay<Results<CPYClip>?>(value: nil)
-
     let config: FilterMenuConfig
-    let item: TextFieldMenuItem
 
     let homePath = FileManager.default.homeDirectoryForCurrentUser.absoluteString.replace(pattern: "^file://", withTemplate: "")
 
     override init(title: String) {
         config = FilterMenuConfig.current()
-        item = TextFieldMenuItem(title: title, action: nil)
 
         super.init(title: title)
-
-        addItem(item)
 
         let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
         let clipResults = realm
             .objects(CPYClip.self)
             .sorted(byKeyPath: #keyPath(CPYClip.updateTime), ascending: ascending)
 
-        filterRelay
-            .distinctUntilChanged()
-            .map { [weak self]filter -> [NSMenuItem]? in
-                guard let self = self else { return nil }
-                var filterRes = clipResults
-                if filter.isNotEmpty {
-                    let predicate = NSPredicate(format: "title LIKE[c] %@", "*" + filter + "*")
-                    filterRes = filterRes.filter(predicate)
-                }
-                return self.manageItems(filterRes, with: filter)
-            }
-            .filterNil()
-            .catchAndReturn([])
-            .subscribe { [weak self]event in
-                guard let self = self, case .next(var new) = event else { return }
-                self.highlight(menuItem: nil)
-                new.insert(self.item, at: 0)
-                self.items = new
-                if new.count > 1 {
-                    self.highlight(menuItem: new[1])
-                }
-            }.disposed(by: bag)
+        let newItems = manageItems(clipResults, with: "")
+        items = newItems
+        if let firstItem = newItems.first {
+            highlight(menuItem: firstItem)
+        }
     }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    func cleanFilter() {
-        filterRelay.accept("")
-        item.content.queryTF.stringValue = ""
-        item.content.updateVisibility()
-    }
-
-    func update(filter: String) {
-        filterRelay.accept(filter)
     }
 
     func highlight(menuItem: NSMenuItem?) {
