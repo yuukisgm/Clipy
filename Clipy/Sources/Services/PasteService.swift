@@ -140,15 +140,25 @@ extension PasteService {
             let source = CGEventSource(stateID: .combinedSessionState)
             // Disable local keyboard events while pasting
             source?.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateSuppressionInterval)
-            // Press Command + V
+            // Simulate full Command+V sequence:
+            // flagsChanged(Cmd↓) → keyDown(V,⌘) → keyUp(V,⌘) → flagsChanged(Cmd↑)
+            // The final flagsChanged(Cmd↑) is required so virtualization apps
+            // (e.g. Parallels) don't see Command as stuck after the paste.
+            let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: true)
+            cmdDown?.type = .flagsChanged
+            cmdDown?.flags = .maskCommand
             let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
             keyVDown?.flags = .maskCommand
-            // Release Command + V
             let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
             keyVUp?.flags = .maskCommand
+            let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: false)
+            cmdUp?.type = .flagsChanged
+            cmdUp?.flags = []
             // Post Paste Command
+            cmdDown?.post(tap: .cgAnnotatedSessionEventTap)
             keyVDown?.post(tap: .cgAnnotatedSessionEventTap)
             keyVUp?.post(tap: .cgAnnotatedSessionEventTap)
+            cmdUp?.post(tap: .cgAnnotatedSessionEventTap)
         }
     }
 }

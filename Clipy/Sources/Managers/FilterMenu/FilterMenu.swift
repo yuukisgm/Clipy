@@ -56,7 +56,6 @@ class FilterMenu: NSMenu {
             }
             .filterNil()
             .catchAndReturn([])
-            .observe(on: ConcurrentMainScheduler.instance)
             .subscribe { [weak self]event in
                 guard let self = self, case .next(var new) = event else { return }
                 self.highlight(menuItem: nil)
@@ -182,8 +181,16 @@ fileprivate extension FilterMenu {
         let isImage = !clip.isColorCode && config.isShowImage
         let isColor = clip.isColorCode && config.isShowColorCode
         if clip.thumbnailPath.isNotEmpty && (isImage || isColor) {
-            PINCache.shared.object(forKeyAsync: clip.thumbnailPath) { [weak menuItem] _, _, object in
-                menuItem?.image = object as? NSImage
+            // Check in-memory cache synchronously first to avoid async updates during menu tracking.
+            if let image = PINCache.shared.memoryCache.object(forKey: clip.thumbnailPath) as? NSImage {
+                menuItem.image = image
+            } else {
+                PINCache.shared.object(forKeyAsync: clip.thumbnailPath) { [weak menuItem] _, _, object in
+                    guard let image = object as? NSImage else { return }
+                    DispatchQueue.main.async {
+                        menuItem?.image = image
+                    }
+                }
             }
         }
 
