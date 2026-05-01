@@ -76,16 +76,25 @@ extension MenuManager {
         case .history:
             FilterMenu(title: L10n.history).popUp(positioning: nil, at: pt, in: statusItem?.button)
         case .snippet:
-            let appearance = statusItem?.button?.effectiveAppearance
-            snippetMenu?.appearance = appearance
-            snippetMenu?.items.forEach { $0.submenu?.appearance = appearance }
+            if let menu = snippetMenu {
+                applyAppearance(statusItem?.button?.effectiveAppearance, to: menu)
+            }
             snippetMenu?.popUp(positioning: nil, at: pt, in: statusItem?.button)
+        }
+    }
+
+    fileprivate func applyAppearance(_ appearance: NSAppearance?, to menu: NSMenu) {
+        menu.appearance = appearance
+        menu.items.forEach { item in
+            if let submenu = item.submenu {
+                applyAppearance(appearance, to: submenu)
+            }
         }
     }
 
     func popUpSnippetFolder(_ folder: CPYFolder) {
         let folderMenu = NSMenu(title: folder.title)
-        folderMenu.appearance = statusItem?.button?.effectiveAppearance ?? NSApp.effectiveAppearance
+        let appearance = statusItem?.button?.effectiveAppearance ?? NSApp.effectiveAppearance
         // Folder title
         let labelItem = NSMenuItem(title: folder.title, action: nil)
         labelItem.isEnabled = false
@@ -100,6 +109,7 @@ extension MenuManager {
                 folderMenu.addItem(subMenuItem)
                 index += 1
             }
+        applyAppearance(appearance, to: folderMenu)
         // 履歴メニューと同じ位置計算でステータスバーボタン基準に表示
         let buttonOrigin = statusItem?.button?.window?.frame.origin
         let pt = buttonOrigin.flatMap { origin -> CGPoint in
@@ -149,6 +159,7 @@ private extension MenuManager {
             defaults.rx.observe(Int.self, Preferences.General.maxShowHistorySize, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Int.self, Preferences.General.maxHistorySize, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Int.self, Preferences.General.maxWidthOfMenuItem, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
+            defaults.rx.observe(Int.self, Preferences.General.menuFontSize, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Bool.self, Preferences.Menu.showIconInTheMenu, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Int.self, Preferences.Menu.numberOfItemsPlaceInline, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Int.self, Preferences.Menu.numberOfItemsPlaceInsideFolder, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
@@ -241,6 +252,7 @@ private extension MenuManager {
     func makeSnippetMenuItem(_ snippet: CPYSnippet, listNumber: Int) -> NSMenuItem {
         let defaults = AppEnvironment.current.defaults
         let isMarkWithNumber = defaults.bool(forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers)
+        let isShowIcon = defaults.bool(forKey: Preferences.Menu.showIconInTheMenu)
         let maxWidth = CGFloat(defaults.float(forKey: Preferences.General.maxWidthOfMenuItem))
         let fontSize = CGFloat(defaults.float(forKey: Preferences.General.menuFontSize))
 
@@ -251,6 +263,7 @@ private extension MenuManager {
         menuItem.attributedTitle = attributedTitle
         menuItem.representedObject = snippet.identifier
         menuItem.toolTip = snippet.content
+        menuItem.image = isShowIcon ? snippetIcon : nil
 
         return menuItem
     }
