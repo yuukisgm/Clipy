@@ -231,7 +231,7 @@
                 <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" allowsCharacterPickerTouchBarItem="YES" preferredMaxLayoutWidth="272" translatesAutoresizingMaskIntoConstraints="NO" id="ohs-tr-ZQ7">
                     <rect key="frame" x="60" y="22" width="276" height="18"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                    <textFieldCell key="cell" sendsActionOnEndEditing="YES" title="The menu icon size" id="WJP-X8-vjR">
+                    <textFieldCell key="cell" sendsActionOnEndEditing="YES" title="Menu font size" id="WJP-X8-vjR">
                         <font key="font" metaFont="system"/>
                         <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
