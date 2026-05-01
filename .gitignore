@@ -48,3 +48,10 @@ Carthage/Builda
 fastlane/report.xml
 fastlane/test_output/
 fastlane/screenshots
+
+# macOS
+.DS_Store
+
+# Local AI / personal config
+CLAUDE.md
+.claude/
