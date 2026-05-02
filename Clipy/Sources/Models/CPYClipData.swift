@@ -32,7 +32,9 @@ final class CPYClipData: NSObject, Codable {
     }
 
     var identifier: String {
-        content.reduce("") { $0 + $1.identifier }.md5
+        // Sort token identifiers so the hash is independent of the
+        // pasteboard type ordering (which varies per source app).
+        content.map { $0.identifier }.sorted().joined().md5
     }
 
     var primaryType: NSPasteboard.PasteboardType? {
@@ -132,7 +134,7 @@ extension CPYClipData {
         init?(pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType) {
             switch type {
                 case .string:
-                    guard let str = pasteboard.string(forType: .string)?.trim, str.isNotEmpty else { return nil }
+                    guard let str = pasteboard.string(forType: .string)?.trimTrailing, str.isNotEmpty else { return nil }
                     self = .string(str)
                 case .fileURL:
                 guard let str = pasteboard.string(forType: .fileURL)?.trim, str.isNotEmpty else { return nil }
@@ -144,14 +146,14 @@ extension CPYClipData {
                     guard let data = pasteboard.data(forType: .rtf) else { return nil }
                     self = .rtf(data)
                 case .rtfd:
-                    guard let data = pasteboard.data(forType: .rtf) else { return nil }
+                    guard let data = pasteboard.data(forType: .rtfd) else { return nil }
                     self = .rtfd(data)
                 case .tiff:
                     guard let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage else { return nil }
                     self = .tiff(.init(image: image))
                 case .png:
                     guard let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage else { return nil }
-                    self = .tiff(.init(image: image))
+                    self = .png(.init(image: image))
                 default:
                     lWarning("unkonwn type:", type)
                     return nil
@@ -210,7 +212,7 @@ extension CPYClipData {
             case .png(let value):
                 return "png" + (value.content?.md5 ?? "")
             case .pdf(let value):
-                return "png" + value.md5
+                return "pdf" + value.md5
             }
         }
     }

@@ -39,7 +39,12 @@ final class PasteService {
 
     // MARK: - Modifiers
     private func isPressedModifier(_ flag: Int) -> Bool {
-        let flags = NSEvent.modifierFlags
+        // Prefer the click event's own flags. Carbon HotKeys (used to popup the
+        // menu) do not always deliver matching flagsChanged events to AppKit, so
+        // `NSEvent.modifierFlags` can stay stale until a real key event arrives.
+        // Reading from NSApp.currentEvent (the click) avoids that lag.
+        let eventFlags = NSApp.currentEvent?.modifierFlags
+        let flags = eventFlags ?? NSEvent.modifierFlags
         if flag == 0 && flags.contains(.command) {
             return true
         } else if flag == 1 && flags.contains(.shift) {

@@ -41,6 +41,19 @@ extension String {
          return trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    var trimTrailing: String {
+        var end = endIndex
+        while end > startIndex {
+            let prev = index(before: end)
+            if self[prev].unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) {
+                end = prev
+            } else {
+                break
+            }
+        }
+        return String(self[startIndex..<end])
+    }
+
     func searchRange(of filter: String) -> Range<String.Index>? {
         var pattern: String?
         if filter.contains("?") {

@@ -40,7 +40,6 @@ final class MenuManager: NSObject {
     fileprivate let kMaxKeyEquivalents = 10
     // Realm
     fileprivate let realm = try! Realm()
-    fileprivate var clipToken: NotificationToken?
     fileprivate var snippetToken: NotificationToken?
 
     // MARK: - Enum Values
@@ -123,13 +122,9 @@ extension MenuManager {
 // MARK: - Binding
 private extension MenuManager {
     func bind() {
-        // Realm Notification
-        clipToken = realm.objects(CPYClip.self)
-                        .observe { [weak self] _ in
-                            DispatchQueue.main.async { [weak self] in
-                                self?.createClipMenu()
-                            }
-                        }
+        // NOTE: Do not observe CPYClip changes here — createClipMenu() rebuilds
+        // only the snippet menu, which is independent of clip history. Watching
+        // clips would force a rebuild on every copy and waste CPU.
         snippetToken = realm.objects(CPYFolder.self)
                         .observe { [weak self] _ in
                             DispatchQueue.main.async { [weak self] in

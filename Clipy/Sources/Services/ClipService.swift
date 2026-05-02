@@ -141,8 +141,16 @@ extension ClipService {
                 DispatchQueue.main.async {
                     // Save Realm and .data file
                     let dispatchRealm = try! Realm()
+                    // Clean up the prior on-disk payload when this dataHash already exists,
+                    // so the Realm record always points at a fresh, valid file.
+                    let stalePath = dispatchRealm
+                        .object(ofType: CPYClip.self, forPrimaryKey: clip.dataHash)?
+                        .dataPath
                     dispatchRealm.transaction {
                         dispatchRealm.add(clip, update: .all)
+                    }
+                    if let stalePath = stalePath, stalePath != savedPath {
+                        try? FileManager.default.removeItem(atPath: stalePath)
                     }
                 }
             }
