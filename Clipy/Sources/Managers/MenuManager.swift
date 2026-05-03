@@ -400,11 +400,12 @@ private extension MenuManager {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "メニューバーアイコンを非表示にしました"
+            let bundleID = Bundle.main.bundleIdentifier ?? "com.clipy-app.Clipy"
             alert.informativeText = """
             この設定では Clipy の設定画面を画面上から開く手段がなくなります。
             再表示するには、ターミナルで次のコマンドを実行してください：
 
-            defaults write com.clipy-project.Clipy kCPYPrefStatusTypeItemKey -int 1 && killall Clipy; open /Applications/Clipy.app
+            defaults write \(bundleID) kCPYPrefStatusTypeItemKey -int 1; killall Clipy 2>/dev/null; open /Applications/Clipy.app
             """
             alert.showsSuppressionButton = true
             alert.suppressionButton?.title = "今後表示しない"
