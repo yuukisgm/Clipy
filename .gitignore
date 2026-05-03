@@ -55,3 +55,4 @@ fastlane/screenshots
 # Local AI / personal config
 CLAUDE.md
 .claude/
+/dist

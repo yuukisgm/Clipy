@@ -28,7 +28,7 @@ Clipy は macOS 用のクリップボード拡張アプリです。
 メニューバーからアイコンを完全に隠して見失った場合は、ターミナルから以下で再表示できます。
 
 ```sh
-defaults delete com.clipy-app.Clipy kCPYPrefShowStatusItemKey
+defaults delete com.yuuki.clipy kCPYPrefShowStatusItemKey
 /Applications/Clipy.app/Contents/MacOS/Clipy &
 ```
 
