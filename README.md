@@ -4,156 +4,73 @@
 
 <br>
 
-![CI](https://github.com/Clipy/Clipy/workflows/CI/badge.svg)
-[![Release version](https://img.shields.io/github/release/Clipy/Clipy.svg)](https://github.com/Clipy/Clipy/releases/latest)
-[![OpenCollective](https://opencollective.com/clipy/backers/badge.svg)](#backers)
-[![OpenCollective](https://opencollective.com/clipy/sponsors/badge.svg)](#sponsors)
-
-Clipy is a Clipboard extension app for macOS.
+Clipy は macOS 用のクリップボード拡張アプリです。
+このリポジトリは [Clipy/Clipy](https://github.com/Clipy/Clipy) / [harryzjm/Clipy](https://github.com/harryzjm/Clipy) からのフォークで、**日本語環境での実用性向上・UI 統一・安定化** を中心に独自改修を加えています。
 
 ---
 
-__Requirement__: macOS 10.15 Catalina or higher
+## 動作要件
 
-__Distribution Site__ : <https://clipy-app.com>
+- macOS 10.15 Catalina 以降（Apple Silicon / Intel 両対応）
+- Xcode 12.3 以上 / Swift 5
 
-<div style="display:flex;flex-direction:row;justify-content:space-between;align-items:center;">
-    <img src="http://clipy-app.com/img/screenshot1.png" width="400">
-    <img src="https://raw.githubusercontent.com/harryzjm/Clipy/develop/Resources/clipy_introduce.jpg" width="400">
-</div>
+## このフォークの変更点
 
+### UI / 表示
+- **ダーク外観に正式対応**（Apple HIG 準拠 / 可読性を改善）
+- **ステータスアイコンに「なし」を追加**（メニューバーから完全に隠せる）
+- 環境設定のタブを等間隔レイアウトに調整
+- 「Beta」表記を「拡張」にリネーム
+- スニペットメニューの見た目・フォントサイズ・表示位置を履歴メニューと統一
+- 環境設定のラベル誤記を修正
 
-### Development Environment
-* macOS 10.15 Catalina
-* Xcode 12.3
-* Swift 5
+### ポップアップ動作
+- 履歴 / スニペットのポップアップを **入力欄（キャレット）位置基準** で表示
+  - キャレットが取れない場合はマウス位置にフォールバック
+- スニペットフォルダ別ホットキーの popUp も入力欄基準に統一
+- ポップアップの初期ハイライトを修正
+- **AX キャレット座標のバリデーション追加**（左下に飛ぶバグを修正）
 
-### Why have this fork
-1. May be [github.com/Clipy/Clipy](https://github.com/Clipy/Clipy) is abandoned?
-2. Add search function
-3. Support dark mode
-4. Support '*' and '?' search
-5. Update third-party libraries
+### 履歴 / ペースト
+- 履歴の重複・取り違えを修正
+- 拡張（旧 Beta）修飾キーの即応化
+- ペースト処理の最適化、arm64 リリース対応
 
-| Char | Count | 
-| :----- | :---- | 
-| * | 0 or More |
-| ? | 1 | 
+### ローカライズ
+- 日本語ローカライズを追加・整備
 
-> At first time, you launch this app, may be had some UI bug. You should relaunch and the bug fix, it may be a bug, but I don`t know why. If you know, please tell me.  
-> Now, this app has a bug, may be cause  arrow keys in the menu is useless. But I don't found how to solve this problem, so I add restart app item(maybe you can add shortcut), and everything is ok, I will fix this bug in next time.
+### リカバリーコマンド
+- ステータス非表示時のリカバリーコマンドを絶対パスに変更
+- バンドル ID を実際の値（`com.clipy-app.Clipy`）に修正
 
-### Translate old snippets  
-```shell
-# ./script/translate.py 
-./translate.py snippets.xml
+メニューバーからアイコンを完全に隠して見失った場合は、ターミナルから以下で再表示できます。
+
+```sh
+defaults delete com.clipy-app.Clipy kCPYPrefShowStatusItemKey
+/Applications/Clipy.app/Contents/MacOS/Clipy &
 ```
 
-### How to Build
-0. Move to the project root directory.
-1. Run `pod install --repo-update` in Terminal.
-1. Open `Clipy.xcworkspace` on Xcode.
-2. build.
+## ビルド方法
 
-### Mavericks Support
-v1.1.2 is the final version of Mavericks support.  
-[Download v1.1.2 release](https://github.com/Clipy/Clipy/releases/tag/1.1.2)
+1. リポジトリ直下に移動
+2. `pod install --repo-update` を実行
+3. `Clipy.xcworkspace` を Xcode で開く
+4. ビルド
 
-### Contributing
-1. Fork it ( https://github.com/Clipy/Clipy/fork )
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create a new Pull Request
+ビルド成果物（`Clipy.app`）はデスクトップに上書き出力する運用にしています。
 
-### Localization Contributors
-Clipy is looking for localization contributors.  
-If you can contribute, please see [CONTRIBUTING.md](https://github.com/Clipy/Clipy/blob/master/.github/CONTRIBUTING.md)
+## スニペットの移行（旧版からの取り込み）
 
-### Distribution
-If you distribute derived work, especially in the Mac App Store, I ask you to follow two rules:
+```sh
+./script/translate.py snippets.xml
+```
 
-1. Don't use `Clipy` and `ClipMenu` as your product name.
-2. Follow the MIT license terms.
+## ライセンス
 
-Thank you for your cooperation.
+MIT License。詳細は [LICENSE](./LICENSE) を参照。アイコンの著作権は各作者に帰属します。
 
-### Backers
+## Special Thanks
 
-Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/clipy#backer)]
-
-<a href="https://opencollective.com/clipy/backer/0/website" target="_blank"><img src="https://opencollective.com/clipy/backer/0/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/1/website" target="_blank"><img src="https://opencollective.com/clipy/backer/1/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/2/website" target="_blank"><img src="https://opencollective.com/clipy/backer/2/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/3/website" target="_blank"><img src="https://opencollective.com/clipy/backer/3/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/4/website" target="_blank"><img src="https://opencollective.com/clipy/backer/4/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/5/website" target="_blank"><img src="https://opencollective.com/clipy/backer/5/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/6/website" target="_blank"><img src="https://opencollective.com/clipy/backer/6/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/7/website" target="_blank"><img src="https://opencollective.com/clipy/backer/7/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/8/website" target="_blank"><img src="https://opencollective.com/clipy/backer/8/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/9/website" target="_blank"><img src="https://opencollective.com/clipy/backer/9/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/10/website" target="_blank"><img src="https://opencollective.com/clipy/backer/10/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/11/website" target="_blank"><img src="https://opencollective.com/clipy/backer/11/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/12/website" target="_blank"><img src="https://opencollective.com/clipy/backer/12/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/13/website" target="_blank"><img src="https://opencollective.com/clipy/backer/13/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/14/website" target="_blank"><img src="https://opencollective.com/clipy/backer/14/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/15/website" target="_blank"><img src="https://opencollective.com/clipy/backer/15/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/16/website" target="_blank"><img src="https://opencollective.com/clipy/backer/16/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/17/website" target="_blank"><img src="https://opencollective.com/clipy/backer/17/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/18/website" target="_blank"><img src="https://opencollective.com/clipy/backer/18/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/19/website" target="_blank"><img src="https://opencollective.com/clipy/backer/19/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/20/website" target="_blank"><img src="https://opencollective.com/clipy/backer/20/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/21/website" target="_blank"><img src="https://opencollective.com/clipy/backer/21/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/22/website" target="_blank"><img src="https://opencollective.com/clipy/backer/22/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/23/website" target="_blank"><img src="https://opencollective.com/clipy/backer/23/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/24/website" target="_blank"><img src="https://opencollective.com/clipy/backer/24/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/25/website" target="_blank"><img src="https://opencollective.com/clipy/backer/25/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/26/website" target="_blank"><img src="https://opencollective.com/clipy/backer/26/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/27/website" target="_blank"><img src="https://opencollective.com/clipy/backer/27/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/28/website" target="_blank"><img src="https://opencollective.com/clipy/backer/28/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/backer/29/website" target="_blank"><img src="https://opencollective.com/clipy/backer/29/avatar.svg"></a>
-
-### Sponsors
-
-Become a sponsor and get your logo on our README on Github with a link to your site. [[Become a sponsor](https://opencollective.com/clipy#sponsor)]
-
-<a href="https://opencollective.com/clipy/sponsor/0/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/1/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/2/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/3/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/4/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/5/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/6/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/7/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/8/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/9/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/9/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/10/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/10/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/11/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/11/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/12/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/12/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/13/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/13/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/14/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/14/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/15/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/15/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/16/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/16/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/17/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/17/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/18/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/18/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/19/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/19/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/20/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/20/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/21/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/21/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/22/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/22/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/23/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/23/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/24/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/24/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/25/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/25/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/26/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/26/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/27/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/27/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/28/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/28/avatar.svg"></a>
-<a href="https://opencollective.com/clipy/sponsor/29/website" target="_blank"><img src="https://opencollective.com/clipy/sponsor/29/avatar.svg"></a>
-
-### Licence
-Clipy is available under the MIT license. See the LICENSE file for more info.
-
-Icons are copyrighted by their respective authors.
-
-### Special Thanks
-__Thank you for [@naotaka](https://github.com/naotaka) who have published [ClipMenu](https://github.com/naotaka/ClipMenu) as OSS.__
-
-
+- [@naotaka](https://github.com/naotaka) — オリジナルの [ClipMenu](https://github.com/naotaka/ClipMenu) 作者
+- [Clipy/Clipy](https://github.com/Clipy/Clipy) — 本家
+- [harryzjm/Clipy](https://github.com/harryzjm/Clipy) — 検索機能などを追加したフォーク元
