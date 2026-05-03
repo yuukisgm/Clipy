@@ -114,7 +114,7 @@ private extension CPYPreferencesWindowController {
         typeImageView.image = Asset.Preference.type.image
         excludeImageView.image = Asset.Preference.excluded.image
         shortcutsImageView.image = Asset.Preference.shortcut.image
-        applyBetaIcon(active: false)
+        betaImageView.image = Asset.Preference.beta.image
 
         generalTextField.textColor = Asset.Color.tabTitle.color
         menuTextField.textColor = Asset.Color.tabTitle.color
@@ -124,37 +124,6 @@ private extension CPYPreferencesWindowController {
         betaTextField.textColor = Asset.Color.tabTitle.color
     }
 
-    func applyBetaIcon(active: Bool) {
-        betaImageView.image = Self.advancedTabIcon
-        betaImageView.contentTintColor = active ? Asset.Color.clipy.color : Asset.Color.tabTitle.color
-    }
-
-    static let advancedTabIcon: NSImage = {
-        let size = NSSize(width: 36, height: 24)
-        let image = NSImage(size: size, flipped: false) { rect in
-            // Rounded rect frame (same key-cap look as shortcut/general icons)
-            let frame = rect.insetBy(dx: 4, dy: 1)
-            let path = NSBezierPath(roundedRect: frame, xRadius: 4, yRadius: 4)
-            path.lineWidth = 1.4
-            NSColor.black.setStroke()
-            path.stroke()
-            // Gear glyph centered inside
-            if #available(macOS 11.0, *),
-               let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil) {
-                let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-                let glyph = symbol.withSymbolConfiguration(config) ?? symbol
-                let gSize = glyph.size
-                let gRect = NSRect(x: rect.midX - gSize.width / 2,
-                                   y: rect.midY - gSize.height / 2,
-                                   width: gSize.width,
-                                   height: gSize.height)
-                glyph.draw(in: gRect)
-            }
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }()
 
     func selectedTab(_ index: Int) {
         resetImages()
@@ -176,7 +145,7 @@ private extension CPYPreferencesWindowController {
             shortcutsImageView.image = Asset.Preference.shortcutOn.image
             shortcutsTextField.textColor = Asset.Color.clipy.color
         case 5:
-            applyBetaIcon(active: true)
+            betaImageView.image = Asset.Preference.betaOn.image
             betaTextField.textColor = Asset.Color.clipy.color
         default: break
         }
