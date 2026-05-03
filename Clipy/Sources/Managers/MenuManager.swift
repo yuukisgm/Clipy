@@ -117,10 +117,36 @@ extension MenuManager {
 
         guard let rect = caretRect(for: focused) ?? elementRect(for: focused) else { return nil }
 
+        // Reject obviously bogus AX results so we don't drop the menu in the
+        // bottom-left of the screen. The text caret we want is always a small
+        // rect actually located on a real screen.
+        if rect.origin == .zero { return nil }
+        if rect.width <= 0 && rect.height <= 0 { return nil }
+        // A "text caret" rect should not be enormous; reject anything that
+        // covers more than ~70% of any screen height (likely a window frame).
+        let screen = NSScreen.screens.first { $0.frame.intersects(axRectToCocoa(rect)) }
+        guard let onScreen = screen else { return nil }
+        if rect.height > onScreen.frame.height * 0.7 { return nil }
+
         let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main
         let primaryHeight = primary?.frame.height ?? 0
         let cocoaY = primaryHeight - rect.maxY - 4
-        return NSPoint(x: rect.minX, y: cocoaY)
+        let candidate = NSPoint(x: rect.minX, y: cocoaY)
+        // Final sanity check: the resulting Cocoa point must land on a screen.
+        guard NSScreen.screens.contains(where: { $0.frame.contains(candidate) }) else { return nil }
+        return candidate
+    }
+
+    /// Helper: convert an AX rect (y from top of the primary screen, growing
+    /// down) to a Cocoa rect (y from bottom of the primary screen, growing up)
+    /// purely for screen-membership tests.
+    private func axRectToCocoa(_ axRect: CGRect) -> CGRect {
+        let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main
+        let primaryHeight = primary?.frame.height ?? 0
+        return CGRect(x: axRect.minX,
+                      y: primaryHeight - axRect.maxY,
+                      width: axRect.width,
+                      height: axRect.height)
     }
 
     private func caretRect(for element: AXUIElement) -> CGRect? {
