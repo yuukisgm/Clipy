@@ -9,10 +9,21 @@ Clipy は macOS 用のクリップボード拡張アプリです。
 
 ---
 
+## ダウンロード
+
+最新ビルドは [Releases](https://github.com/yuukisgm/Clipy/releases/latest) から取得できます。お使いの Mac に合わせて以下をダウンロードし、開いて `Clipy.app` を `Applications` フォルダにドラッグしてください。
+
+| Mac | ファイル |
+|---|---|
+| Apple Silicon（M1 以降） | `Clipy_<version>_AppleSilicon.dmg` |
+| Intel | `Clipy_<version>_Intel.dmg` |
+
+> 初回起動時に「開発元を確認できません」と出る場合は、Finder で `Clipy.app` を右クリック →「開く」を選択してください。
+
 ## 動作要件
 
-- macOS 10.15 Catalina 以降（Apple Silicon / Intel 両対応）
-- Xcode 12.3 以上 / Swift 5
+- macOS 11 Big Sur 以降（Apple Silicon / Intel 両対応）
+- ソースからビルドする場合: Xcode 12.3 以上 / Swift 5
 
 ## このフォークの主な改良点
 
@@ -32,14 +43,23 @@ defaults delete com.yuuki.clipy kCPYPrefShowStatusItemKey
 /Applications/Clipy.app/Contents/MacOS/Clipy &
 ```
 
-## ビルド方法
+## ソースからビルド
 
 1. リポジトリ直下に移動
 2. `pod install --repo-update` を実行
-3. `Clipy.xcworkspace` を Xcode で開く
-4. ビルド
+3. `Clipy.xcworkspace` を Xcode で開いてビルド
 
-ビルド成果物（`Clipy.app`）はデスクトップに上書き出力する運用にしています。
+### 配布用 DMG の作成
+
+`script/build_dmg.sh` で arm64 / x86_64 を別々の単一アーキバイナリとしてビルドし、Applications へドラッグ&ドロップ用の DMG を生成します。
+
+```sh
+./script/build_dmg.sh both    # 両方
+./script/build_dmg.sh arm64   # Apple Silicon のみ
+./script/build_dmg.sh x86_64  # Intel のみ
+```
+
+成果物は `dist/Clipy_<version>_AppleSilicon.dmg` / `dist/Clipy_<version>_Intel.dmg`。
 
 ## スニペットの移行（旧版からの取り込み）
 
