@@ -176,13 +176,9 @@ extension MenuManager {
                 index += 1
             }
         applyAppearance(appearance, to: folderMenu)
-        // 履歴メニューと同じ位置計算でステータスバーボタン基準に表示
-        let buttonOrigin = statusItem?.button?.window?.frame.origin
-        let pt = buttonOrigin.flatMap { origin -> CGPoint in
-            let mouse = NSEvent.mouseLocation
-            return NSPoint(x: mouse.x - origin.x, y: origin.y - mouse.y)
-        } ?? .zero
-        folderMenu.popUp(positioning: nil, at: pt, in: statusItem?.button)
+        // 履歴メニューと同じ位置計算（キャレット → マウス → ステータスバー）。
+        let pt = popUpLocation()
+        folderMenu.popUp(positioning: folderMenu.items.first, at: pt, in: statusItem?.button)
     }
 }
 
