@@ -73,12 +73,16 @@ extension MenuManager {
 
         switch type {
         case .history:
-            FilterMenu(title: L10n.history).popUp(positioning: nil, at: pt, in: statusItem?.button)
+            let menu = FilterMenu(title: L10n.history)
+            // Passing the first item as `positioning` makes NSMenu open with
+            // that item under `pt` AND give it the initial highlight, so arrow
+            // keys can start navigating immediately.
+            menu.popUp(positioning: menu.items.first, at: pt, in: statusItem?.button)
         case .snippet:
             if let menu = snippetMenu {
                 applyAppearance(statusItem?.button?.effectiveAppearance, to: menu)
             }
-            snippetMenu?.popUp(positioning: nil, at: pt, in: statusItem?.button)
+            snippetMenu?.popUp(positioning: snippetMenu?.items.first, at: pt, in: statusItem?.button)
         }
     }
 
@@ -106,13 +110,11 @@ extension MenuManager {
               let focusedRef = focusedAny else { return nil }
         let focused = focusedRef as! AXUIElement
 
-        let axRect = caretRect(for: focused) ?? elementRect(for: focused)
-        guard let rect = axRect else { return nil }
+        guard let rect = caretRect(for: focused) ?? elementRect(for: focused) else { return nil }
 
-        // AX rects are in screen coordinates with y growing downward from the
-        // top of the primary screen; convert to Cocoa screen coordinates.
-        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        let cocoaY = primaryHeight - rect.maxY - 4 // small offset below the line
+        let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main
+        let primaryHeight = primary?.frame.height ?? 0
+        let cocoaY = primaryHeight - rect.maxY - 4
         return NSPoint(x: rect.minX, y: cocoaY)
     }
 
