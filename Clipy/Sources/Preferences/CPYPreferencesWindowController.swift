@@ -98,7 +98,7 @@ private extension CPYPreferencesWindowController {
         typeImageView.image = Asset.Preference.type.image
         excludeImageView.image = Asset.Preference.excluded.image
         shortcutsImageView.image = Asset.Preference.shortcut.image
-        betaImageView.image = Asset.Preference.beta.image
+        applyBetaIcon(active: false)
 
         generalTextField.textColor = Asset.Color.tabTitle.color
         menuTextField.textColor = Asset.Color.tabTitle.color
@@ -106,6 +106,13 @@ private extension CPYPreferencesWindowController {
         excludeTextField.textColor = Asset.Color.tabTitle.color
         shortcutsTextField.textColor = Asset.Color.tabTitle.color
         betaTextField.textColor = Asset.Color.tabTitle.color
+    }
+
+    func applyBetaIcon(active: Bool) {
+        let image = NSImage(named: NSImage.advancedName) ?? Asset.Preference.beta.image
+        image.isTemplate = true
+        betaImageView.image = image
+        betaImageView.contentTintColor = active ? Asset.Color.clipy.color : Asset.Color.tabTitle.color
     }
 
     func selectedTab(_ index: Int) {
@@ -128,7 +135,7 @@ private extension CPYPreferencesWindowController {
             shortcutsImageView.image = Asset.Preference.shortcutOn.image
             shortcutsTextField.textColor = Asset.Color.clipy.color
         case 5:
-            betaImageView.image = Asset.Preference.betaOn.image
+            applyBetaIcon(active: true)
             betaTextField.textColor = Asset.Color.clipy.color
         default: break
         }
