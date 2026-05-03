@@ -125,18 +125,36 @@ private extension CPYPreferencesWindowController {
     }
 
     func applyBetaIcon(active: Bool) {
-        let image: NSImage
-        if #available(macOS 11.0, *),
-           let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil) {
-            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-            image = symbol.withSymbolConfiguration(config) ?? symbol
-        } else {
-            image = Asset.Preference.beta.image
-        }
-        image.isTemplate = true
-        betaImageView.image = image
+        betaImageView.image = Self.advancedTabIcon
         betaImageView.contentTintColor = active ? Asset.Color.clipy.color : Asset.Color.tabTitle.color
     }
+
+    static let advancedTabIcon: NSImage = {
+        let size = NSSize(width: 36, height: 24)
+        let image = NSImage(size: size, flipped: false) { rect in
+            // Rounded rect frame (same key-cap look as shortcut/general icons)
+            let frame = rect.insetBy(dx: 4, dy: 1)
+            let path = NSBezierPath(roundedRect: frame, xRadius: 4, yRadius: 4)
+            path.lineWidth = 1.4
+            NSColor.black.setStroke()
+            path.stroke()
+            // Gear glyph centered inside
+            if #available(macOS 11.0, *),
+               let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil) {
+                let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+                let glyph = symbol.withSymbolConfiguration(config) ?? symbol
+                let gSize = glyph.size
+                let gRect = NSRect(x: rect.midX - gSize.width / 2,
+                                   y: rect.midY - gSize.height / 2,
+                                   width: gSize.width,
+                                   height: gSize.height)
+                glyph.draw(in: gRect)
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }()
 
     func selectedTab(_ index: Int) {
         resetImages()
