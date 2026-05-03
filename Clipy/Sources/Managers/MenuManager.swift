@@ -404,7 +404,7 @@ private extension MenuManager {
             この設定では Clipy の設定画面を画面上から開く手段がなくなります。
             再表示するには、ターミナルで次のコマンドを実行してください：
 
-            defaults write com.clipy-project.Clipy kCPYPrefStatusTypeItemKey -int 1 && killall Clipy && open -a Clipy
+            defaults write com.clipy-project.Clipy kCPYPrefStatusTypeItemKey -int 1 && killall Clipy; open /Applications/Clipy.app
             """
             alert.showsSuppressionButton = true
             alert.suppressionButton?.title = "今後表示しない"
