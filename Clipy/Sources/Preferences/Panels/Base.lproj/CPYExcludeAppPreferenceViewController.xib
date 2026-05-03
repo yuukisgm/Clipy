@@ -66,7 +66,7 @@
                                     <tableColumn identifier="ImageAndTextCellColumn" editable="NO" width="365" minWidth="40" maxWidth="1000" id="EUV-XF-Cas">
                                         <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" alignment="left">
                                             <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" white="0.33333298560000002" alpha="1" colorSpace="calibratedWhite"/>
+                                            <color key="backgroundColor" name="separatorColor" catalog="System" colorSpace="catalog"/>
                                         </tableHeaderCell>
                                         <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" editable="YES" alignment="left" title="Text Cell" id="XXp-Rw-8h6">
                                             <font key="font" metaFont="system"/>

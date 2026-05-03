@@ -50,6 +50,13 @@ import Cocoa
     }
 
     // MARK: - Update
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        // Semantic / dynamic colors resolve against the current appearance, so
+        // a redraw is required when the user toggles between light and dark.
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         // Background
         backgroundColor.setFill()
