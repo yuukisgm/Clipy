@@ -53,6 +53,8 @@ final class CPYPreferencesWindowController: NSWindowController {
         self.window?.collectionBehavior = .canJoinAllSpaces
         self.window?.titlebarAppearsTransparent = true
 
+        lockWindowToMaxPanelSize()
+
         toolBarItemTapped(generalButton)
         generalButton.sendAction(on: .leftMouseDown)
         menuButton.sendAction(on: .leftMouseDown)
@@ -60,6 +62,20 @@ final class CPYPreferencesWindowController: NSWindowController {
         excludeButton.sendAction(on: .leftMouseDown)
         shortcutsButton.sendAction(on: .leftMouseDown)
         betaButton.sendAction(on: .leftMouseDown)
+    }
+
+    private func lockWindowToMaxPanelSize() {
+        guard let window = window else { return }
+        var maxSize = NSSize.zero
+        for vc in viewController {
+            let size = vc.view.frame.size
+            maxSize.width = max(maxSize.width, size.width)
+            maxSize.height = max(maxSize.height, size.height)
+        }
+        let contentSize = NSSize(width: maxSize.width, height: maxSize.height + toolBar.frame.height)
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize))
+        frame.origin = window.frame.origin
+        window.setFrame(frame, display: false)
     }
 
     override func showWindow(_ sender: Any?) {
@@ -109,7 +125,14 @@ private extension CPYPreferencesWindowController {
     }
 
     func applyBetaIcon(active: Bool) {
-        let image = NSImage(named: NSImage.advancedName) ?? Asset.Preference.beta.image
+        let image: NSImage
+        if #available(macOS 11.0, *),
+           let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil) {
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+            image = symbol.withSymbolConfiguration(config) ?? symbol
+        } else {
+            image = Asset.Preference.beta.image
+        }
         image.isTemplate = true
         betaImageView.image = image
         betaImageView.contentTintColor = active ? Asset.Color.clipy.color : Asset.Color.tabTitle.color
@@ -143,19 +166,15 @@ private extension CPYPreferencesWindowController {
 
     func switchView(_ index: Int) {
         let newView = viewController[index].view
-        // Remove current views without toolbar
         window?.contentView?.subviews.forEach { view in
             if view != toolBar {
                 view.removeFromSuperview()
             }
         }
-        // Resize view
-        let frame = window!.frame
-        var newFrame = window!.frameRect(forContentRect: newView.frame)
-        newFrame.origin = frame.origin
-        newFrame.origin.y += frame.height - newFrame.height - toolBar.frame.height
-        newFrame.size.height += toolBar.frame.height
-        window?.setFrame(newFrame, display: true)
-        window?.contentView?.addSubview(newView)
+        guard let contentView = window?.contentView else { return }
+        var frame = newView.frame
+        frame.origin = NSPoint(x: 0, y: contentView.frame.height - toolBar.frame.height - frame.size.height)
+        newView.frame = frame
+        contentView.addSubview(newView)
     }
 }
