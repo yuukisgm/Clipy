@@ -11,6 +11,7 @@
 //
 
 import Cocoa
+import ApplicationServices
 import RealmSwift
 import RxCocoa
 import RxSwift
@@ -65,11 +66,10 @@ final class MenuManager: NSObject {
 // MARK: - Popup Menu
 extension MenuManager {
     func popUpMenu(_ type: MenuType) {
-        let current = statusItem?.button?.window?.frame.origin
-        let pt = current.flatMap { pt -> CGPoint in
-            let mouse = NSEvent.mouseLocation
-            return NSPoint(x: mouse.x - pt.x, y: pt.y - mouse.y)
-        } ?? .zero
+        // Prefer the focused text caret of the frontmost app; fall back to the
+        // mouse cursor; finally the status bar button. Caret-relative is the
+        // closest to where the user is actually looking.
+        let pt = popUpLocation()
 
         switch type {
         case .history:
@@ -80,6 +80,71 @@ extension MenuManager {
             }
             snippetMenu?.popUp(positioning: nil, at: pt, in: statusItem?.button)
         }
+    }
+
+    /// Returns the popup anchor in coordinates relative to the status item
+    /// button's window — what NSMenu.popUp(positioning:at:in:) expects when the
+    /// `in:` view is the status item button. Tries caret → mouse → button.
+    fileprivate func popUpLocation() -> CGPoint {
+        guard let buttonOrigin = statusItem?.button?.window?.frame.origin else { return .zero }
+        let screenPoint = caretScreenPoint() ?? NSEvent.mouseLocation
+        // Cocoa screen coordinates have y growing upward; the status button
+        // window's local space has y growing downward from its origin.
+        return NSPoint(x: screenPoint.x - buttonOrigin.x, y: buttonOrigin.y - screenPoint.y)
+    }
+
+    /// Asks AX for the focused text element of the frontmost app and returns
+    /// the bottom-left of the caret (or element bounds) in Cocoa screen
+    /// coordinates. Returns nil if anything fails or AX trust is not granted.
+    fileprivate func caretScreenPoint() -> NSPoint? {
+        guard AXIsProcessTrusted() else { return nil }
+        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+
+        var focusedAny: AnyObject?
+        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedAny) == .success,
+              let focusedRef = focusedAny else { return nil }
+        let focused = focusedRef as! AXUIElement
+
+        let axRect = caretRect(for: focused) ?? elementRect(for: focused)
+        guard let rect = axRect else { return nil }
+
+        // AX rects are in screen coordinates with y growing downward from the
+        // top of the primary screen; convert to Cocoa screen coordinates.
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let cocoaY = primaryHeight - rect.maxY - 4 // small offset below the line
+        return NSPoint(x: rect.minX, y: cocoaY)
+    }
+
+    private func caretRect(for element: AXUIElement) -> CGRect? {
+        var rangeAny: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeAny) == .success,
+              let rangeRef = rangeAny, CFGetTypeID(rangeRef) == AXValueGetTypeID() else { return nil }
+        let rangeValue = rangeRef as! AXValue
+        var range = CFRange(location: 0, length: 0)
+        guard AXValueGetValue(rangeValue, .cfRange, &range) else { return nil }
+
+        guard let param = AXValueCreate(.cfRange, &range) else { return nil }
+        var boundsAny: AnyObject?
+        guard AXUIElementCopyParameterizedAttributeValue(element, kAXBoundsForRangeParameterizedAttribute as CFString, param, &boundsAny) == .success,
+              let boundsRef = boundsAny, CFGetTypeID(boundsRef) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(boundsRef as! AXValue, .cgRect, &rect) else { return nil }
+        // Some apps return zero-size rects when there is no caret; reject those.
+        return rect.width > 0 || rect.height > 0 ? rect : nil
+    }
+
+    private func elementRect(for element: AXUIElement) -> CGRect? {
+        var posAny: AnyObject?
+        var sizeAny: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posAny) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeAny) == .success,
+              let posRef = posAny, let sizeRef = sizeAny,
+              CFGetTypeID(posRef) == AXValueGetTypeID(), CFGetTypeID(sizeRef) == AXValueGetTypeID() else { return nil }
+        var pos = CGPoint.zero, size = CGSize.zero
+        guard AXValueGetValue(posRef as! AXValue, .cgPoint, &pos),
+              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size) else { return nil }
+        return CGRect(origin: pos, size: size)
     }
 
     fileprivate func applyAppearance(_ appearance: NSAppearance?, to menu: NSMenu) {
