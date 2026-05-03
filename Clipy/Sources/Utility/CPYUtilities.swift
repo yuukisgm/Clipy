@@ -23,7 +23,8 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: false), forKey: Constants.UserDefaults.suppressAlertForLoginItem)
         defaultValues.updateValue(NSNumber(value: 25), forKey: Preferences.General.maxShowHistorySize)
         defaultValues.updateValue(NSNumber(value: 100), forKey: Preferences.General.maxHistorySize)
-        defaultValues.updateValue(NSNumber(value: 0), forKey: Preferences.General.statusTypeItem)
+        // 1 == StatusType.black (matches the menu item tag in CPYGeneralPreferenceViewController.xib).
+        defaultValues.updateValue(NSNumber(value: 1), forKey: Preferences.General.statusTypeItem)
         defaultValues.updateValue(AppDelegate.storeTypesDictionary(), forKey: Constants.UserDefaults.storeTypes)
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.General.inputPasteCommand)
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.General.reorderClipsAfterPasting)

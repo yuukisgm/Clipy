@@ -44,8 +44,13 @@ final class MenuManager: NSObject {
     fileprivate var snippetToken: NotificationToken?
 
     // MARK: - Enum Values
+    // raw values match the menu item tags in CPYGeneralPreferenceViewController.xib
+    // (None=0, Black=1, White=2) so the popup binding (selectedTag) and the
+    // setting storage agree.
     enum StatusType: Int {
-        case black, white
+        case none = 0
+        case black = 1
+        case white = 2
     }
 
     // MARK: - Initialize
@@ -199,7 +204,7 @@ private extension MenuManager {
             .filterNil()
             .asDriver(onErrorDriveWith: .empty())
             .drive(onNext: { [weak self] key in
-                self?.changeStatusItem(StatusType(rawValue: key) ?? .black)
+                self?.changeStatusItem(StatusType(rawValue: key) ?? .none)
             })
             .disposed(by: disposeBag)
 
@@ -334,6 +339,10 @@ private extension MenuManager {
 
         let image: NSImage?
         switch type {
+        case .none:
+            // The user opted to hide the menu bar icon entirely.
+            warnAboutHiddenStatusItemIfNeeded()
+            return
         case .black:
             image = Asset.StatusIcon.menuBlack.image
         case .white:
@@ -353,6 +362,31 @@ private extension MenuManager {
         if let item = statusItem {
             NSStatusBar.system.removeStatusItem(item)
             statusItem = nil
+        }
+    }
+
+    private static let hideAlertSuppressKey = "kCPYSuppressAlertForHideStatusIcon"
+
+    private func warnAboutHiddenStatusItemIfNeeded() {
+        let defaults = AppEnvironment.current.defaults
+        if defaults.bool(forKey: Self.hideAlertSuppressKey) { return }
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "メニューバーアイコンを非表示にしました"
+            alert.informativeText = """
+            この設定では Clipy の設定画面を画面上から開く手段がなくなります。
+            再表示するには、ターミナルで次のコマンドを実行してください：
+
+            defaults write com.clipy-project.Clipy kCPYPrefStatusTypeItemKey -int 1 && killall Clipy && open -a Clipy
+            """
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = "今後表示しない"
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            if alert.suppressionButton?.state == .on {
+                defaults.set(true, forKey: Self.hideAlertSuppressKey)
+            }
         }
     }
 }
