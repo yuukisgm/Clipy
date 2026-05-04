@@ -197,6 +197,7 @@ extension AppDelegate: NSApplicationDelegate {
 
         // Managers
         AppEnvironment.current.menuManager.setup()
+        ClipSearchPanelController.shared.startTrackingFrontmostApp()
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {

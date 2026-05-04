@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		551677E926C417310040C38D /* LoginServiceKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551677E826C417300040C38D /* LoginServiceKit.swift */; };
 		603AD8FF25427ABA00A6C6F6 /* FilterMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603AD8FE25427ABA00A6C6F6 /* FilterMenu.swift */; };
+		6E21D51796AF404DB89EDDD0 /* ClipSearchPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B44817843EE4F0189541BA9 /* ClipSearchPanelController.swift */; };
 		605F360C2546C9EE00AE9701 /* NSCoding+Ext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605F360B2546C9ED00AE9701 /* NSCoding+Ext.swift */; };
 		605F367A2547BEAA00AE9701 /* FilterMenuConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605F36792547BEAA00AE9701 /* FilterMenuConfig.swift */; };
 		605F3899254828B500AE9701 /* String+Truncate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605F3898254828B500AE9701 /* String+Truncate.swift */; };
@@ -103,6 +104,7 @@
 		314B299F1EC49BAF004DD070 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/CPYPreferencesWindowController.xib; sourceTree = "<group>"; };
 		551677E826C417300040C38D /* LoginServiceKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginServiceKit.swift; sourceTree = "<group>"; };
 		603AD8FE25427ABA00A6C6F6 /* FilterMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterMenu.swift; sourceTree = "<group>"; };
+		5B44817843EE4F0189541BA9 /* ClipSearchPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipSearchPanelController.swift; sourceTree = "<group>"; };
 		605F360B2546C9ED00AE9701 /* NSCoding+Ext.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "NSCoding+Ext.swift"; sourceTree = "<group>"; };
 		605F36792547BEAA00AE9701 /* FilterMenuConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterMenuConfig.swift; sourceTree = "<group>"; };
 		605F3898254828B500AE9701 /* String+Truncate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Truncate.swift"; sourceTree = "<group>"; };
@@ -360,10 +362,19 @@
 			path = Extensions;
 			sourceTree = "<group>";
 		};
+		D7D4289AA4C9492AAF2B985F /* SearchPanel */ = {
+			isa = PBXGroup;
+			children = (
+				5B44817843EE4F0189541BA9 /* ClipSearchPanelController.swift */,
+			);
+			path = SearchPanel;
+			sourceTree = "<group>";
+		};
 		FA1DB4BE1DDCB460007F95C8 /* Managers */ = {
 			isa = PBXGroup;
 			children = (
 				605F367C2547C07D00AE9701 /* FilterMenu */,
+				D7D4289AA4C9492AAF2B985F /* SearchPanel */,
 				FA1DB4C31DDCB460007F95C8 /* MenuManager.swift */,
 			);
 			path = Managers;
@@ -709,6 +720,7 @@
 				CAFD12B01F207DBC00DF1CEB /* Observable+Void.swift in Sources */,
 				FA1DB4B41DDCB452007F95C8 /* NSBundle+Version.swift in Sources */,
 				603AD8FF25427ABA00A6C6F6 /* FilterMenu.swift in Sources */,
+				6E21D51796AF404DB89EDDD0 /* ClipSearchPanelController.swift in Sources */,
 				FA1DB5171DDCB4C0007F95C8 /* CPYTypePreferenceViewController.swift in Sources */,
 				FA1DB4A21DDCB433007F95C8 /* AppDelegate.swift in Sources */,
 				FA1DB5141DDCB4C0007F95C8 /* CPYBetaPreferenceViewController.swift in Sources */,

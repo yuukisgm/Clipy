@@ -78,11 +78,8 @@ extension MenuManager {
 
         switch type {
         case .history:
-            let menu = FilterMenu(title: L10n.history)
-            // Passing the first item as `positioning` makes NSMenu open with
-            // that item under `pt` AND give it the initial highlight, so arrow
-            // keys can start navigating immediately.
-            menu.popUp(positioning: menu.items.first, at: pt, in: statusItem?.button)
+            let screenPt = caretScreenPoint() ?? NSEvent.mouseLocation
+            ClipSearchPanelController.shared.show(at: screenPt)
         case .snippet:
             if let menu = snippetMenu {
                 applyAppearance(statusItem?.button?.effectiveAppearance, to: menu)
