@@ -7,8 +7,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "Clipy/Supporting Files/Info.plist" 2>/dev/null || echo 1.5.0)"
-[ "$VERSION" = '$(MARKETING_VERSION)' ] && VERSION="1.5.0"
+VERSION="$(grep -m1 'MARKETING_VERSION' Clipy.xcodeproj/project.pbxproj | sed 's/.*= *//;s/;//')"
+[ -z "$VERSION" ] && VERSION="1.5.1"
 
 DIST="$ROOT/dist"
 mkdir -p "$DIST"
