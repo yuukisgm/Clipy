@@ -18,7 +18,15 @@ Clipy は macOS 用のクリップボード拡張アプリです。
 | Apple Silicon（M1 以降） | `Clipy_<version>_AppleSilicon.dmg` |
 | Intel | `Clipy_<version>_Intel.dmg` |
 
-> 初回起動時に「開発元を確認できません」と出る場合は、Finder で `Clipy.app` を右クリック →「開く」を選択してください。
+> **⚠️ 初回起動時の必須手順**
+> 本アプリは未署名のため、ダウンロード後そのまま開くと「壊れているため開けません」と表示されます。
+> アプリケーションフォルダにコピーした後、**必ずターミナルで以下を実行**してください。
+>
+> ```sh
+> xattr -cr /Applications/Clipy.app
+> ```
+>
+> 実行後はダブルクリックで起動できます。
 
 ## 動作要件
 
