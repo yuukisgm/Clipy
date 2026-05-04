@@ -205,6 +205,15 @@ extension AppDelegate: NSApplicationDelegate {
         #endif
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        let defaults = AppEnvironment.current.defaults
+        let currentType = defaults.integer(forKey: Preferences.General.statusTypeItem)
+        if currentType == MenuManager.StatusType.none.rawValue {
+            defaults.set(MenuManager.StatusType.black.rawValue, forKey: Preferences.General.statusTypeItem)
+        }
+        return true
+    }
+
 }
 
 // MARK: - Bind

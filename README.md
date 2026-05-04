@@ -36,11 +36,12 @@ Clipy は macOS 用のクリップボード拡張アプリです。
 - ペースト処理の最適化と Apple Silicon（arm64）リリース対応
 - 履歴メニューの検索機能を削除（日本語入力下で動作が不安定だったため）
 
-メニューバーからアイコンを完全に隠して見失った場合は、ターミナルから以下で再表示できます。
+メニューバーからアイコンを完全に隠して見失った場合は、Finder から Clipy.app をもう一度開くとアイコンが復活します。
+
+それでも解決しない場合はターミナルから以下を実行してください。
 
 ```sh
-defaults delete com.yuuki.clipy kCPYPrefShowStatusItemKey
-/Applications/Clipy.app/Contents/MacOS/Clipy &
+defaults write com.yuuki.clipy kCPYPrefStatusTypeItemKey -int 1; open /Applications/Clipy.app
 ```
 
 ## ソースからビルド
