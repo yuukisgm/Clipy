@@ -54,6 +54,7 @@ build_arch() {
     rm -rf "$STAGE"
     mkdir -p "$STAGE"
     cp -R "$APP" "$STAGE/Clipy.app"
+    xattr -cr "$STAGE/Clipy.app"
     ln -s /Applications "$STAGE/Applications"
 
     hdiutil create -volname "Clipy ${VERSION} (${LABEL})" \
