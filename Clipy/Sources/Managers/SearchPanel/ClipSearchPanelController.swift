@@ -1,4 +1,5 @@
 import Cocoa
+import PINCache
 import RealmSwift
 
 // Borderless NSPanel that can become key (required for IME and text input).
@@ -376,14 +377,59 @@ final class ClipSearchPanelController: NSObject {
         f.font = NSFont.systemFont(ofSize: 13)
         f.textColor = tooltipContainerView.textColor()
         f.translatesAutoresizingMaskIntoConstraints = false
-        tooltipContainerView.addSubview(f)
-        NSLayoutConstraint.activate([
-            f.leadingAnchor.constraint(equalTo: tooltipContainerView.leadingAnchor, constant: 8),
-            f.trailingAnchor.constraint(equalTo: tooltipContainerView.trailingAnchor, constant: -8),
-            f.topAnchor.constraint(equalTo: tooltipContainerView.topAnchor, constant: 4),
-            f.bottomAnchor.constraint(equalTo: tooltipContainerView.bottomAnchor, constant: -4)
-        ])
+        f.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return f
+    }()
+
+    private lazy var tooltipColorSwatch: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.layer?.cornerRadius = 2
+        v.layer?.borderWidth = 0.5
+        v.layer?.borderColor = NSColor.tertiaryLabelColor.cgColor
+        v.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            v.widthAnchor.constraint(equalToConstant: 14),
+            v.heightAnchor.constraint(equalToConstant: 14)
+        ])
+        return v
+    }()
+
+    private lazy var tooltipImageView: NSImageView = {
+        let v = NSImageView()
+        v.imageScaling = .scaleProportionallyUpOrDown
+        v.translatesAutoresizingMaskIntoConstraints = false
+        let w = v.widthAnchor.constraint(equalToConstant: 80)
+        let h = v.heightAnchor.constraint(equalToConstant: 80)
+        NSLayoutConstraint.activate([w, h])
+        tooltipImageWidthConstraint = w
+        tooltipImageHeightConstraint = h
+        return v
+    }()
+
+    private var tooltipImageWidthConstraint: NSLayoutConstraint?
+    private var tooltipImageHeightConstraint: NSLayoutConstraint?
+
+    private lazy var tooltipContentStack: NSStackView = {
+        let labelRow = NSStackView(views: [tooltipColorSwatch, tooltipLabel])
+        labelRow.orientation = .horizontal
+        labelRow.spacing = 6
+        labelRow.alignment = .centerY
+        labelRow.distribution = .fill
+
+        let s = NSStackView(views: [tooltipImageView, labelRow])
+        s.orientation = .vertical
+        s.spacing = 4
+        s.alignment = .leading
+        s.translatesAutoresizingMaskIntoConstraints = false
+        tooltipContainerView.addSubview(s)
+        NSLayoutConstraint.activate([
+            s.leadingAnchor.constraint(equalTo: tooltipContainerView.leadingAnchor, constant: 8),
+            s.trailingAnchor.constraint(equalTo: tooltipContainerView.trailingAnchor, constant: -8),
+            s.topAnchor.constraint(equalTo: tooltipContainerView.topAnchor, constant: 4),
+            s.bottomAnchor.constraint(equalTo: tooltipContainerView.bottomAnchor, constant: -4)
+        ])
+        return s
     }()
 
     private lazy var folderScrollView: NSScrollView = {
@@ -1352,12 +1398,47 @@ final class ClipSearchPanelController: NSObject {
             hideSelectionTooltip()
             return
         }
+        _ = tooltipContentStack
+
+        let clip = tooltipClip(for: tableView, row: row)
+        let defaults = AppEnvironment.current.defaults
+        let isColor = clip?.isColorCode == true &&
+                      defaults.bool(forKey: Preferences.Menu.showColorPreviewInTheMenu)
+        let hasImage = clip?.isColorCode == false &&
+                       clip?.thumbnailPath.isNotEmpty == true &&
+                       defaults.bool(forKey: Preferences.Menu.showImageInTheMenu)
+
+        tooltipImageView.isHidden = !hasImage
+        tooltipColorSwatch.isHidden = !isColor
+        tooltipLabel.isHidden = hasImage
+
+        prepareTooltipAnchor(in: tableView, row: row)
+
+        if hasImage, let thumbnailPath = clip?.thumbnailPath {
+            loadTooltipImage(thumbnailPath: thumbnailPath)
+            let cached = PINCache.shared.memoryCache.object(forKey: thumbnailPath) as? NSImage
+            let natural = cached?.size ?? NSSize(width: 80, height: 80)
+            let maxDim: CGFloat = 200
+            let scale = min(maxDim / natural.width, maxDim / natural.height, 1.0)
+            let displayW = max(ceil(natural.width * scale), 40)
+            let displayH = max(ceil(natural.height * scale), 40)
+            tooltipImageWidthConstraint?.constant = displayW
+            tooltipImageHeightConstraint?.constant = displayH
+            positionAndShowTooltip(tableView: tableView, row: row,
+                                   size: NSSize(width: displayW + 16, height: displayH + 8))
+            return
+        }
+
+        if isColor, let title = clip?.title,
+           let hex = title.firstMatch(pattern: "^(?:0x|#)?([0-9a-fA-F]{6,8})$"),
+           let color = NSColor(hexString: hex) {
+            tooltipColorSwatch.layer?.backgroundColor = color.cgColor
+        }
+
         guard let title = tooltipTitle(for: tableView, row: row), !title.isEmpty else {
             hideSelectionTooltip()
             return
         }
-        prepareTooltipAnchor(in: tableView, row: row)
-
         let maxLength = integerPreference(Preferences.Menu.maxLengthOfToolTip, fallback: 100)
         let titleNSString = title as NSString
         let clippedTitle = titleNSString.substring(to: min(titleNSString.length, maxLength))
@@ -1366,37 +1447,57 @@ final class ClipSearchPanelController: NSObject {
         tooltipLabel.textColor = tooltipContainerView.textColor()
 
         let font = tooltipLabel.font ?? NSFont.systemFont(ofSize: 13)
-        let maxTextSize = NSSize(width: 406, height: 120)
+        let swatchExtra: CGFloat = isColor ? (14 + 6) : 0
         let textRect = (clippedTitle as NSString).boundingRect(
-            with: maxTextSize,
+            with: NSSize(width: 406 - swatchExtra, height: 120),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font]
         )
-        let width = min(max(ceil(textRect.width) + 16, 32), 422)
+        let width = min(max(ceil(textRect.width) + swatchExtra + 16, 32), 422)
         let height = min(max(ceil(textRect.height) + 8, 22), 128)
-        var frame = tooltipPanel.frame
-        frame.size = NSSize(width: width, height: height)
+        positionAndShowTooltip(tableView: tableView, row: row, size: NSSize(width: width, height: height))
+    }
 
+    private func positionAndShowTooltip(tableView: NSTableView, row: Int, size: NSSize) {
+        var frame = tooltipPanel.frame
+        frame.size = size
         let rowRect = tableView.rect(ofRow: row)
         let rowWindowRect = tableView.convert(rowRect, to: nil)
         let rowScreenRect = tableView.window?.convertToScreen(rowWindowRect) ?? .zero
         frame.origin = NSPoint(x: rowScreenRect.maxX + 6,
                                y: rowScreenRect.maxY - frame.height - 1)
-
         if let screen = tableView.window?.screen ?? NSScreen.main {
-            if frame.maxX > screen.visibleFrame.maxX {
-                frame.origin.x = rowScreenRect.minX - frame.width - 6
-            }
-            if frame.minY < screen.visibleFrame.minY {
-                frame.origin.y = screen.visibleFrame.minY
-            }
-            if frame.maxY > screen.visibleFrame.maxY {
-                frame.origin.y = screen.visibleFrame.maxY - frame.height
-            }
+            if frame.maxX > screen.visibleFrame.maxX { frame.origin.x = rowScreenRect.minX - frame.width - 6 }
+            if frame.minY < screen.visibleFrame.minY { frame.origin.y = screen.visibleFrame.minY }
+            if frame.maxY > screen.visibleFrame.maxY { frame.origin.y = screen.visibleFrame.maxY - frame.height }
         }
-
         tooltipPanel.setFrame(frame, display: true, animate: false)
         tooltipPanel.orderFrontRegardless()
+    }
+
+    private func tooltipClip(for tableView: NSTableView, row: Int) -> CPYClip? {
+        if tableView === folderTableView {
+            guard row >= 0, row < folderClips.count else { return nil }
+            return folderClips[row]
+        }
+        guard row >= 0, row < filteredRows.count else { return nil }
+        guard case let .clip(clip, _) = filteredRows[row] else { return nil }
+        return clip
+    }
+
+    private func loadTooltipImage(thumbnailPath: String) {
+        tooltipImageView.image = nil
+        if let cached = PINCache.shared.memoryCache.object(forKey: thumbnailPath) as? NSImage {
+            tooltipImageView.image = cached
+            return
+        }
+        PINCache.shared.object(forKeyAsync: thumbnailPath) { [weak self] _, _, object in
+            guard let self, let image = object as? NSImage else { return }
+            DispatchQueue.main.async {
+                guard self.tooltipPanel.isVisible else { return }
+                self.tooltipImageView.image = image
+            }
+        }
     }
 
     private func prepareTooltipAnchor(in tableView: NSTableView, row: Int) {

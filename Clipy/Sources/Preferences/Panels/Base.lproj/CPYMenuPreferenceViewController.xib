@@ -152,17 +152,6 @@
                         <binding destination="vgf-2t-abs" name="value" keyPath="values.addNumericKeyEquivalents" id="rCG-vo-hje"/>
                     </connections>
                 </button>
-                <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="jpT-JC-0Xd">
-                    <rect key="frame" x="60" y="249" width="407" height="18"/>
-                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                    <buttonCell key="cell" type="check" title="Display icons in menu items" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="yrU-qO-OwD">
-                        <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
-                        <font key="font" metaFont="system"/>
-                    </buttonCell>
-                    <connections>
-                        <binding destination="vgf-2t-abs" name="value" keyPath="values.kCPYPrefShowIconInTheMenuKey" id="Ywt-zc-fTm"/>
-                    </connections>
-                </button>
                 <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2KT-cs-obj">
                     <rect key="frame" x="60" y="180" width="389" height="18"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
