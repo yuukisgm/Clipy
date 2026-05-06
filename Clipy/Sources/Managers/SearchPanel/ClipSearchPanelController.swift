@@ -1344,6 +1344,7 @@ final class ClipSearchPanelController: NSObject {
             hideSelectionTooltip()
             return
         }
+        prepareTooltipAnchor(in: tableView, row: row)
 
         let maxLength = integerPreference(Preferences.Menu.maxLengthOfToolTip, fallback: 100)
         let titleNSString = title as NSString
@@ -1384,6 +1385,16 @@ final class ClipSearchPanelController: NSObject {
 
         tooltipPanel.setFrame(frame, display: true, animate: false)
         tooltipPanel.orderFrontRegardless()
+    }
+
+    private func prepareTooltipAnchor(in tableView: NSTableView, row: Int) {
+        guard row >= 0, row < tableView.numberOfRows else { return }
+        tableView.scrollRowToVisible(row)
+        tableView.enclosingScrollView?.superview?.layoutSubtreeIfNeeded()
+        tableView.enclosingScrollView?.layoutSubtreeIfNeeded()
+        tableView.enclosingScrollView?.contentView.layoutSubtreeIfNeeded()
+        tableView.layoutSubtreeIfNeeded()
+        tableView.window?.layoutIfNeeded()
     }
 }
 
