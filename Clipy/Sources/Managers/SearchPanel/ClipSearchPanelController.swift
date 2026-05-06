@@ -455,6 +455,8 @@ final class ClipSearchPanelController: NSObject {
     private weak var mainTableViewRef: NSTableView?
     private weak var folderTableViewRef: NSTableView?
     private var suppressSelectionSideEffects = false
+    private var suppressInitialTooltip = false
+    private var initialTooltipRow = -1
     private var realm = try! Realm()
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
@@ -552,6 +554,8 @@ final class ClipSearchPanelController: NSObject {
         applyPanelModeLayout()
         updateTableMetrics()
         loadClips()
+        suppressInitialTooltip = true
+        initialTooltipRow = -1
         applyFilter("")
 
         resizePanel()
@@ -1340,6 +1344,14 @@ final class ClipSearchPanelController: NSObject {
 
     private func showSelectionTooltip(for tableView: NSTableView) {
         let row = tableView.selectedRow
+        if suppressInitialTooltip, tableView === self.tableView {
+            if initialTooltipRow < 0 || row == initialTooltipRow {
+                initialTooltipRow = row
+                hideSelectionTooltip()
+                return
+            }
+            suppressInitialTooltip = false
+        }
         guard let title = tooltipTitle(for: tableView, row: row), !title.isEmpty else {
             hideSelectionTooltip()
             return
