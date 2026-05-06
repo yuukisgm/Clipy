@@ -588,6 +588,8 @@ final class ClipSearchPanelController: NSObject {
         setupFolderLayout()
         applyPanelModeLayout()
         updateTableMetrics()
+        suppressInitialTooltip = true
+        initialTooltipRow = -1
         loadSnippetRows()
 
         resizePanel()
@@ -612,6 +614,8 @@ final class ClipSearchPanelController: NSObject {
         setupFolderLayout()
         applyPanelModeLayout()
         updateTableMetrics()
+        suppressInitialTooltip = true
+        initialTooltipRow = -1
         filteredRows = enabledSnippets(in: folder).enumerated().map { .snippet($0.element, listNumber: $0.offset + 1) }
         folderPanel.orderOut(nil)
         tableView.reloadData()
