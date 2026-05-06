@@ -74,17 +74,13 @@ extension MenuManager {
         // Prefer the focused text caret of the frontmost app; fall back to the
         // mouse cursor; finally the status bar button. Caret-relative is the
         // closest to where the user is actually looking.
-        let pt = popUpLocation()
-
         switch type {
         case .history:
             let screenPt = caretScreenPoint() ?? NSEvent.mouseLocation
             ClipSearchPanelController.shared.show(at: screenPt)
         case .snippet:
-            if let menu = snippetMenu {
-                applyAppearance(statusItem?.button?.effectiveAppearance, to: menu)
-            }
-            snippetMenu?.popUp(positioning: snippetMenu?.items.first, at: pt, in: statusItem?.button)
+            let screenPt = caretScreenPoint() ?? NSEvent.mouseLocation
+            ClipSearchPanelController.shared.showSnippets(at: screenPt)
         }
     }
 
@@ -187,26 +183,8 @@ extension MenuManager {
     }
 
     func popUpSnippetFolder(_ folder: CPYFolder) {
-        let folderMenu = NSMenu(title: folder.title)
-        let appearance = statusItem?.button?.effectiveAppearance ?? NSApp.effectiveAppearance
-        // Folder title
-        let labelItem = NSMenuItem(title: folder.title, action: nil)
-        labelItem.isEnabled = false
-        folderMenu.addItem(labelItem)
-        // Snippets
-        var index = firstIndexOfMenuItems()
-        folder.snippets
-            .sorted(byKeyPath: #keyPath(CPYSnippet.index), ascending: true)
-            .filter { $0.enable }
-            .forEach { snippet in
-                let subMenuItem = makeSnippetMenuItem(snippet, listNumber: index)
-                folderMenu.addItem(subMenuItem)
-                index += 1
-            }
-        applyAppearance(appearance, to: folderMenu)
-        // 履歴メニューと同じ位置計算（キャレット → マウス → ステータスバー）。
-        let pt = popUpLocation()
-        folderMenu.popUp(positioning: folderMenu.items.first, at: pt, in: statusItem?.button)
+        let screenPt = caretScreenPoint() ?? NSEvent.mouseLocation
+        ClipSearchPanelController.shared.showSnippetFolder(folder, at: screenPt)
     }
 }
 
@@ -317,8 +295,8 @@ private extension MenuManager {
             .filter { $0.enable }
             .forEach { folder in
                 let folderTitle = folder.title
-                let subMenuItem = makeSubmenuItem(folderTitle)
-                menu.addItem(subMenuItem)
+                let folderMenuItem = makeSubmenuItem(folderTitle)
+                menu.addItem(folderMenuItem)
                 subMenuIndex += 1
 
                 var i = firstIndex
@@ -327,7 +305,7 @@ private extension MenuManager {
                     .filter { $0.enable }
                     .forEach { snippet in
                         let subMenuItem = makeSnippetMenuItem(snippet, listNumber: i)
-                        if let subMenu = menu.item(at: subMenuIndex)?.submenu {
+                        if let subMenu = folderMenuItem.submenu {
                             subMenu.addItem(subMenuItem)
                             i += 1
                         }

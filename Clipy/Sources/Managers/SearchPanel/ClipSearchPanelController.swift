@@ -7,9 +7,229 @@ private final class KeyablePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+private final class MenuBackgroundView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 14
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1
+        applyAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearance()
+    }
+
+    private func applyAppearance() {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let background = dark
+            ? NSColor(calibratedWhite: 0.11, alpha: 0.97)
+            : NSColor(calibratedWhite: 0.98, alpha: 0.97)
+        let border = dark
+            ? NSColor.white.withAlphaComponent(0.16)
+            : NSColor.black.withAlphaComponent(0.18)
+        layer?.backgroundColor = background.cgColor
+        layer?.borderColor = border.cgColor
+    }
+}
+
+private final class MenuTooltipBackgroundView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 2
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        layer?.borderWidth = 0
+        applyAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearance()
+    }
+
+    func textColor() -> NSColor {
+        effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(calibratedWhite: 0.86, alpha: 1)
+            : NSColor(calibratedWhite: 0.24, alpha: 1)
+    }
+
+    private func applyAppearance() {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let background = dark
+            ? NSColor(calibratedWhite: 0.22, alpha: 0.98)
+            : NSColor(calibratedWhite: 0.89, alpha: 0.98)
+        layer?.backgroundColor = background.cgColor
+    }
+}
+
+private final class MenuSeparatorView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        applyAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearance()
+    }
+
+    private func applyAppearance() {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        layer?.backgroundColor = (dark
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.black.withAlphaComponent(0.10)).cgColor
+    }
+}
+
+private final class MenuTableView: NSTableView {
+    private var hoverTrackingArea: NSTrackingArea?
+    var hoverSelectionHandler: ((MenuTableView) -> Void)?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea = hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+        let options: NSTrackingArea.Options = [.activeAlways, .inVisibleRect, .mouseMoved]
+        hoverTrackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(hoverTrackingArea!)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let row = row(at: convert(event.locationInWindow, from: nil))
+        guard row >= 0, row < numberOfRows else { return }
+        selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        scrollRowToVisible(row)
+        if let action = action {
+            NSApp.sendAction(action, to: target, from: self)
+        }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let row = row(at: convert(event.locationInWindow, from: nil))
+        guard row >= 0, row < numberOfRows else { return }
+        selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        scrollRowToVisible(row)
+        hoverSelectionHandler?(self)
+    }
+}
+
+private final class MenuSearchFieldCell: NSTextFieldCell {
+    private let horizontalInset: CGFloat = 4
+
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        centeredRect(super.drawingRect(forBounds: rect))
+    }
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        centeredRect(super.titleRect(forBounds: rect))
+    }
+
+    override func edit(withFrame rect: NSRect,
+                       in controlView: NSView,
+                       editor textObj: NSText,
+                       delegate: Any?,
+                       event: NSEvent?) {
+        super.edit(withFrame: centeredRect(rect), in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
+
+    override func select(withFrame rect: NSRect,
+                         in controlView: NSView,
+                         editor textObj: NSText,
+                         delegate: Any?,
+                         start selStart: Int,
+                         length selLength: Int) {
+        super.select(withFrame: centeredRect(rect), in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
+    }
+
+    private func centeredRect(_ rect: NSRect) -> NSRect {
+        let textHeight = cellSize.height
+        let y = rect.origin.y + floor((rect.height - textHeight) / 2)
+        return NSRect(x: rect.origin.x + horizontalInset,
+                      y: y,
+                      width: max(0, rect.width - horizontalInset * 2),
+                      height: textHeight)
+    }
+}
+
+private final class MenuItemTextFieldCell: NSTextFieldCell {
+    private static let verticalOpticalOffset: CGFloat = 1
+
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        verticallyCenteredRect(super.drawingRect(forBounds: rect), forBounds: rect)
+    }
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        verticallyCenteredRect(super.titleRect(forBounds: rect), forBounds: rect)
+    }
+
+    private func verticallyCenteredRect(_ baseRect: NSRect, forBounds rect: NSRect) -> NSRect {
+        var drawingRect = baseRect
+        let textSize = cellSize(forBounds: rect)
+        let heightDelta = drawingRect.height - textSize.height
+        guard heightDelta > 0 else { return drawingRect }
+        drawingRect.origin.y += floor(heightDelta / 2) + Self.verticalOpticalOffset
+        drawingRect.size.height -= heightDelta
+        return drawingRect
+    }
+}
+
+private final class MenuSearchField: NSTextField {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearance()
+    }
+
+    func applyAppearance() {
+        textColor = .labelColor
+        placeholderAttributedString = NSAttributedString(
+            string: placeholderString ?? "",
+            attributes: [.foregroundColor: NSColor.placeholderTextColor]
+        )
+    }
+}
+
+// Always shows accent-colored selection regardless of focus state — matches NSMenu behavior.
+private final class ClipRowView: NSTableRowView {
+    override var isEmphasized: Bool { get { true } set {} }
+}
+
 // Floating search panel for clipboard history.
 // Replaces the old NSMenu-based FilterMenu so IME (Japanese input) works correctly.
 final class ClipSearchPanelController: NSObject {
+    private static let mainTableIdentifier = NSUserInterfaceItemIdentifier("main")
+    private static let folderTableIdentifier = NSUserInterfaceItemIdentifier("folder")
+    private static let folderTopInset: CGFloat = 0
+    private static let folderBottomInset: CGFloat = 0
+    private static let folderVerticalPadding: CGFloat = folderTopInset + folderBottomInset
+    private static let snippetTopInset: CGFloat = 4
+    private static let snippetBottomInset: CGFloat = 4
+    private static let snippetVerticalInset: CGFloat = snippetTopInset + snippetBottomInset
+    private static let snippetListBottomPadding: CGFloat = 0
+    private static let submenuListBottomPadding: CGFloat = 4
+
 
     // MARK: - Singleton
 
@@ -20,7 +240,7 @@ final class ClipSearchPanelController: NSObject {
     private lazy var panel: KeyablePanel = {
         let p = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 400),
-            styleMask: [.titled, .fullSizeContentView],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: true
         )
@@ -28,46 +248,45 @@ final class ClipSearchPanelController: NSObject {
         p.level = .popUpMenu
         p.isOpaque = false
         p.backgroundColor = .clear
-        p.hasShadow = true
+        p.hidesOnDeactivate = false
+        p.acceptsMouseMovedEvents = true
+        p.hasShadow = false
         p.isMovableByWindowBackground = false
-        // Hide title bar chrome while keeping .titled so the panel can become key (required for IME).
-        p.titlebarAppearsTransparent = true
-        p.titleVisibility = .hidden
-        p.standardWindowButton(.closeButton)?.isHidden = true
-        p.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        p.standardWindowButton(.zoomButton)?.isHidden = true
         p.contentView = containerView
         return p
     }()
 
-    private lazy var containerView: NSVisualEffectView = {
-        let v = NSVisualEffectView()
-        v.material = .menu
-        v.blendingMode = .behindWindow
-        v.state = .active
-        v.wantsLayer = true
-        v.layer?.cornerRadius = 10
-        v.layer?.masksToBounds = true
-        return v
+    private lazy var containerView: MenuBackgroundView = {
+        return MenuBackgroundView()
     }()
 
     private lazy var searchField: NSTextField = {
-        let f = NSTextField()
+        let f = MenuSearchField()
+        let cell = MenuSearchFieldCell(textCell: "")
+        cell.isEditable = true
+        cell.isSelectable = true
+        cell.isScrollable = true
+        cell.usesSingleLineMode = true
+        cell.lineBreakMode = .byTruncatingTail
+        f.cell = cell
         f.placeholderString = "履歴を検索…"
         f.isBordered = false
+        f.isBezeled = false
         f.drawsBackground = false
+        f.isEditable = true
+        f.isSelectable = true
         f.font = NSFont.systemFont(ofSize: 15)
         f.focusRingType = .none
         f.translatesAutoresizingMaskIntoConstraints = false
         f.delegate = self
+        f.applyAppearance()
         return f
     }()
 
-    private lazy var separatorLine: NSBox = {
-        let b = NSBox()
-        b.boxType = .separator
-        b.translatesAutoresizingMaskIntoConstraints = false
-        return b
+    private lazy var separatorLine: MenuSeparatorView = {
+        let v = MenuSeparatorView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        return v
     }()
 
     private lazy var scrollView: NSScrollView = {
@@ -75,39 +294,184 @@ final class ClipSearchPanelController: NSObject {
         s.hasVerticalScroller = true
         s.autohidesScrollers = true
         s.drawsBackground = false
+        s.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        s.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         s.translatesAutoresizingMaskIntoConstraints = false
         s.documentView = tableView
         return s
     }()
 
     private lazy var tableView: NSTableView = {
-        let t = NSTableView()
+        let t = MenuTableView()
+        t.identifier = Self.mainTableIdentifier
         let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("title"))
         col.isEditable = false
         t.addTableColumn(col)
         t.headerView = nil
-        t.rowHeight = 28
+        t.rowHeight = menuRowHeight()
         t.backgroundColor = .clear
-        t.intercellSpacing = NSSize(width: 0, height: 2)
+        t.intercellSpacing = menuIntercellSpacing()
         t.selectionHighlightStyle = .regular
+        mainTableViewRef = t
         t.dataSource = self
         t.delegate = self
         t.target = self
+        t.action = #selector(tableViewClicked)
         t.doubleAction = #selector(tableViewDoubleClicked)
+        t.hoverSelectionHandler = { [weak self] tableView in
+            self?.showFolderIfNeeded(at: tableView.selectedRow)
+        }
+        return t
+    }()
+
+    private lazy var folderPanel: NSPanel = {
+        let p = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 260),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        p.isFloatingPanel = true
+        p.level = .popUpMenu
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hidesOnDeactivate = false
+        p.acceptsMouseMovedEvents = true
+        p.hasShadow = false
+        p.contentView = folderContainerView
+        return p
+    }()
+
+    private lazy var folderContainerView: MenuBackgroundView = {
+        return MenuBackgroundView()
+    }()
+
+    private lazy var tooltipPanel: NSPanel = {
+        let p = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 80, height: 22),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        p.isFloatingPanel = true
+        p.level = .popUpMenu
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hidesOnDeactivate = false
+        p.ignoresMouseEvents = true
+        p.hasShadow = false
+        p.contentView = tooltipContainerView
+        return p
+    }()
+
+    private lazy var tooltipContainerView: MenuTooltipBackgroundView = {
+        return MenuTooltipBackgroundView()
+    }()
+
+    private lazy var tooltipLabel: NSTextField = {
+        let f = NSTextField(labelWithString: "")
+        f.lineBreakMode = .byTruncatingTail
+        f.maximumNumberOfLines = 6
+        f.font = NSFont.systemFont(ofSize: 13)
+        f.textColor = tooltipContainerView.textColor()
+        f.translatesAutoresizingMaskIntoConstraints = false
+        tooltipContainerView.addSubview(f)
+        NSLayoutConstraint.activate([
+            f.leadingAnchor.constraint(equalTo: tooltipContainerView.leadingAnchor, constant: 8),
+            f.trailingAnchor.constraint(equalTo: tooltipContainerView.trailingAnchor, constant: -8),
+            f.topAnchor.constraint(equalTo: tooltipContainerView.topAnchor, constant: 4),
+            f.bottomAnchor.constraint(equalTo: tooltipContainerView.bottomAnchor, constant: -4)
+        ])
+        return f
+    }()
+
+    private lazy var folderScrollView: NSScrollView = {
+        let s = NSScrollView()
+        s.hasVerticalScroller = true
+        s.autohidesScrollers = true
+        s.drawsBackground = false
+        s.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        s.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        s.translatesAutoresizingMaskIntoConstraints = false
+        s.documentView = folderTableView
+        return s
+    }()
+
+    private lazy var folderTableView: NSTableView = {
+        let t = MenuTableView()
+        t.identifier = Self.folderTableIdentifier
+        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("title"))
+        col.isEditable = false
+        t.addTableColumn(col)
+        t.headerView = nil
+        t.rowHeight = menuRowHeight()
+        t.backgroundColor = .clear
+        t.intercellSpacing = menuIntercellSpacing()
+        t.selectionHighlightStyle = .regular
+        folderTableViewRef = t
+        t.dataSource = self
+        t.delegate = self
+        t.target = self
+        t.action = #selector(folderTableViewClicked)
+        t.doubleAction = #selector(folderTableViewDoubleClicked)
+        t.hoverSelectionHandler = { [weak self] tableView in
+            self?.showSelectionTooltip(for: tableView)
+        }
         return t
     }()
 
     // MARK: - State
 
+    private enum SearchRow {
+        case folder(String, Range<Int>)
+        case clip(CPYClip, listNumber: Int?)
+        case snippetFolder(CPYFolder, [CPYSnippet])
+        case snippet(CPYSnippet, listNumber: Int?)
+    }
+
+    private enum ActiveList {
+        case main
+        case folder
+    }
+
+    private enum PanelMode {
+        case history
+        case snippet
+    }
+
+    private enum FolderPanelSide {
+        case left
+        case right
+    }
+
     private var allClips: [CPYClip] = []
-    private var filteredClips: [CPYClip] = []
+    private var visibleClips: [CPYClip] = []
+    private var filteredRows: [SearchRow] = []
+    private var folderClips: [CPYClip] = []
+    private var folderSnippets: [CPYSnippet] = []
+    private var activeList: ActiveList = .main
+    private var panelMode: PanelMode = .history
+    private var folderPanelSide: FolderPanelSide = .right
+    private weak var mainTableViewRef: NSTableView?
+    private weak var folderTableViewRef: NSTableView?
+    private var suppressSelectionSideEffects = false
     private var realm = try! Realm()
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
+    private var searchObserver: Any?
     // Continuously tracked so we always know where to paste even if frontmostApplication
     // returns nil at the moment the hotkey fires.
     private var lastActiveApp: NSRunningApplication?
     private var workspaceObserver: Any?
+    private var scrollTopToSeparatorConstraint: NSLayoutConstraint?
+    private var scrollTopToContainerConstraint: NSLayoutConstraint?
+    private var scrollBottomConstraint: NSLayoutConstraint?
+    private var searchTopConstraint: NSLayoutConstraint?
+    private var searchHeightConstraint: NSLayoutConstraint?
+    private var separatorTopConstraint: NSLayoutConstraint?
+    private var separatorHeightConstraint: NSLayoutConstraint?
+    private var folderTopConstraint: NSLayoutConstraint?
+    private var folderBottomConstraint: NSLayoutConstraint?
 
     // MARK: - App Tracking
 
@@ -136,28 +500,57 @@ final class ClipSearchPanelController: NSObject {
         containerView.addSubview(separatorLine)
         containerView.addSubview(scrollView)
 
-        NSLayoutConstraint.activate([
-            searchField.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 12),
-            searchField.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 14),
-            searchField.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -14),
-            searchField.heightAnchor.constraint(equalToConstant: 24),
+        scrollTopToSeparatorConstraint = scrollView.topAnchor.constraint(equalTo: separatorLine.bottomAnchor, constant: 2)
+        scrollTopToContainerConstraint = scrollView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 4)
+        scrollBottomConstraint = scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -4)
+        searchTopConstraint = searchField.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 8)
+        searchHeightConstraint = searchField.heightAnchor.constraint(equalToConstant: 22)
+        separatorTopConstraint = separatorLine.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 6)
+        separatorHeightConstraint = separatorLine.heightAnchor.constraint(equalToConstant: 1)
 
-            separatorLine.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 10),
+        NSLayoutConstraint.activate([
+            searchTopConstraint!,
+            searchField.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 10),
+            searchField.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
+            searchHeightConstraint!,
+
+            separatorTopConstraint!,
             separatorLine.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             separatorLine.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            separatorLine.heightAnchor.constraint(equalToConstant: 1),
+            separatorHeightConstraint!,
 
-            scrollView.topAnchor.constraint(equalTo: separatorLine.bottomAnchor, constant: 4),
+            scrollTopToSeparatorConstraint!,
             scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -4)
+            scrollBottomConstraint!
+        ])
+    }
+
+    private func setupFolderLayout() {
+        guard folderContainerView.subviews.isEmpty else { return }
+
+        folderContainerView.addSubview(folderScrollView)
+        folderTopConstraint = folderScrollView.topAnchor.constraint(equalTo: folderContainerView.topAnchor, constant: Self.folderTopInset)
+        folderBottomConstraint = folderScrollView.bottomAnchor.constraint(equalTo: folderContainerView.bottomAnchor, constant: -Self.folderBottomInset)
+
+        NSLayoutConstraint.activate([
+            folderTopConstraint!,
+            folderScrollView.leadingAnchor.constraint(equalTo: folderContainerView.leadingAnchor),
+            folderScrollView.trailingAnchor.constraint(equalTo: folderContainerView.trailingAnchor),
+            folderBottomConstraint!
         ])
     }
 
     // MARK: - Show / Hide
 
     func show(at screenPoint: NSPoint) {
+        rememberFrontmostApp()
+        CPYUtilities.registerUserDefaultKeys()
+        panelMode = .history
         setupLayout()
+        setupFolderLayout()
+        applyPanelModeLayout()
+        updateTableMetrics()
         loadClips()
         applyFilter("")
 
@@ -166,14 +559,81 @@ final class ClipSearchPanelController: NSObject {
 
         // Activate Clipy so the panel can become key and IME works correctly.
         NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(searchField)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.panel.isVisible else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            self.panel.orderFrontRegardless()
+            self.panel.makeKeyAndOrderFront(nil)
+            self.panel.makeFirstResponder(self.searchField)
+        }
 
+        removeEventMonitors()
+        removeSearchObserver()
+        installEventMonitors()
+        installSearchObserver()
+    }
+
+    func showSnippets(at screenPoint: NSPoint) {
+        rememberFrontmostApp()
+        CPYUtilities.registerUserDefaultKeys()
+        panelMode = .snippet
+        setupLayout()
+        setupFolderLayout()
+        applyPanelModeLayout()
+        updateTableMetrics()
+        loadSnippetRows()
+
+        resizePanel()
+        positionPanel(near: screenPoint)
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(tableView)
+        showFolderIfNeeded(at: tableView.selectedRow)
+
+        removeEventMonitors()
+        removeSearchObserver()
+        installEventMonitors()
+    }
+
+    func showSnippetFolder(_ folder: CPYFolder, at screenPoint: NSPoint) {
+        rememberFrontmostApp()
+        CPYUtilities.registerUserDefaultKeys()
+        panelMode = .snippet
+        setupLayout()
+        setupFolderLayout()
+        applyPanelModeLayout()
+        updateTableMetrics()
+        filteredRows = enabledSnippets(in: folder).enumerated().map { .snippet($0.element, listNumber: $0.offset + 1) }
+        folderPanel.orderOut(nil)
+        tableView.reloadData()
+        invalidateRowHeights(tableView)
+        if !filteredRows.isEmpty {
+            select(row: 0, showTooltip: false)
+        }
+
+        resizePanel()
+        positionPanel(near: screenPoint)
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(tableView)
+
+        removeEventMonitors()
+        removeSearchObserver()
         installEventMonitors()
     }
 
     func close(restoreFocus: Bool = true) {
         removeEventMonitors()
+        removeSearchObserver()
+        hideSelectionTooltip()
+        folderPanel.orderOut(nil)
         panel.orderOut(nil)
         searchField.stringValue = ""
         if restoreFocus {
@@ -181,10 +641,29 @@ final class ClipSearchPanelController: NSObject {
         }
     }
 
+    private func applyPanelModeLayout() {
+        let isHistory = panelMode == .history
+        searchField.isHidden = !isHistory
+        separatorLine.isHidden = !isHistory
+        searchTopConstraint?.constant = isHistory ? 8 : 0
+        searchHeightConstraint?.constant = isHistory ? 22 : 0
+        separatorTopConstraint?.constant = isHistory ? 6 : 0
+        separatorHeightConstraint?.constant = isHistory ? 1 : 0
+        scrollTopToContainerConstraint?.constant = isHistory ? 4 : Self.snippetTopInset
+        scrollBottomConstraint?.constant = isHistory ? -4 : -Self.snippetBottomInset
+        scrollTopToSeparatorConstraint?.constant = isHistory ? 2 : 0
+        scrollTopToSeparatorConstraint?.isActive = false
+        scrollTopToContainerConstraint?.isActive = false
+        scrollTopToSeparatorConstraint?.isActive = isHistory
+        scrollTopToContainerConstraint?.isActive = !isHistory
+        containerView.layoutSubtreeIfNeeded()
+    }
+
     // MARK: - Data
 
     private func loadClips() {
-        let maxHistory = AppEnvironment.current.defaults.integer(forKey: Preferences.General.maxHistorySize)
+        realm.refresh()
+        let maxHistory = integerPreference(Preferences.General.maxHistorySize, fallback: 100)
         let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
         let results = realm
             .objects(CPYClip.self)
@@ -194,29 +673,276 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func applyFilter(_ query: String) {
-        if query.isEmpty {
-            filteredClips = allClips
-        } else {
-            filteredClips = allClips.filter { $0.title.localizedStandardContains(query) }
-        }
+        let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
+        let limit = maxShowHistory > 0 ? maxShowHistory : allClips.count
+        let matches = query.isEmpty ? allClips : allClips.filter { $0.title.localizedStandardContains(query) }
+        let clips = Array(matches.prefix(limit))
+        visibleClips = clips
+        folderPanel.orderOut(nil)
+        activeList = .main
+        filteredRows = query.isEmpty ? menuRows(from: visibleClips) : visibleClips.map { .clip($0, listNumber: nil) }
         tableView.reloadData()
-        if !filteredClips.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-            tableView.scrollRowToVisible(0)
+        invalidateRowHeights(tableView)
+        if let firstRow = nextSelectableRow(from: -1) {
+            select(row: firstRow, showTooltip: false)
         }
         resizePanel()
     }
 
+    private func menuRows(from clips: [CPYClip]) -> [SearchRow] {
+        let inlineCount = max(integerPreference(Preferences.Menu.numberOfItemsPlaceInline, fallback: 10), 0)
+        let folderCount = max(integerPreference(Preferences.Menu.numberOfItemsPlaceInsideFolder, fallback: 15), 1)
+        let firstFolderIndex = min(inlineCount, clips.count)
+        var rows: [SearchRow] = clips[0..<firstFolderIndex].enumerated().map { obj in
+            .clip(obj.element, listNumber: obj.offset + 1)
+        }
+
+        var begin = firstFolderIndex
+        while begin < clips.count {
+            let end = min(begin + folderCount, clips.count)
+            rows.append(.folder("\(begin + 1) - \(end)", begin..<end))
+            begin = end
+        }
+        return rows
+    }
+
+    private func loadSnippetRows() {
+        realm.refresh()
+        let folders = realm.objects(CPYFolder.self).sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
+        filteredRows = folders
+            .filter { $0.enable }
+            .map { folder in .snippetFolder(folder, enabledSnippets(in: folder)) }
+        folderPanel.orderOut(nil)
+        suppressSelectionSideEffects = true
+        activeList = .main
+        tableView.reloadData()
+        invalidateRowHeights(tableView)
+        if !filteredRows.isEmpty {
+            select(row: 0, showTooltip: false)
+        }
+        suppressSelectionSideEffects = false
+    }
+
+    private func enabledSnippets(in folder: CPYFolder) -> [CPYSnippet] {
+        Array(folder.snippets
+            .sorted(byKeyPath: #keyPath(CPYSnippet.index), ascending: true)
+            .filter { $0.enable })
+    }
+
+    private func showFolder(_ range: Range<Int>, from row: Int, activate: Bool = false) {
+        guard range.lowerBound >= 0, range.upperBound <= visibleClips.count else { return }
+        folderClips = Array(visibleClips[range])
+        folderSnippets = []
+        showFolderPanel(from: row, activate: activate)
+    }
+
+    private func showSnippetFolder(_ snippets: [CPYSnippet], from row: Int, activate: Bool = false) {
+        folderClips = []
+        folderSnippets = snippets
+        showFolderPanel(from: row, activate: activate)
+    }
+
+    private func showFolderPanel(from row: Int, activate: Bool) {
+        folderTableView.reloadData()
+        invalidateRowHeights(folderTableView)
+        if activate, folderTableView.numberOfRows > 0 {
+            folderTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            folderTableView.scrollRowToVisible(0)
+        } else {
+            folderTableView.deselectAll(nil)
+        }
+        resizeFolderPanel(anchorRow: row)
+        layoutTableDocumentView(folderTableView)
+        folderPanel.orderFront(nil)
+        if activate {
+            activeList = .folder
+        }
+    }
+
     // MARK: - Panel Geometry
 
+    private func panelWidth() -> CGFloat {
+        let itemWidth = CGFloat(integerPreference(Preferences.General.maxWidthOfMenuItem, fallback: 260))
+        return max(260, itemWidth) + 48  // text area + scrollbar + side padding
+    }
+
+    private func menuFontSize() -> CGFloat {
+        let fontSize = CGFloat(AppEnvironment.current.defaults.float(forKey: Preferences.General.menuFontSize))
+        return fontSize > 0 ? fontSize : 14
+    }
+
+    private func menuRowHeight() -> CGFloat {
+        let fontSize = menuFontSize()
+        let regularFont = NSFont.systemFont(ofSize: fontSize)
+        let boldFont = NSFont.boldSystemFont(ofSize: fontSize)
+        let textHeight = max(
+            regularFont.boundingRectForFont.height,
+            boldFont.boundingRectForFont.height,
+            regularFont.ascender - regularFont.descender + regularFont.leading,
+            boldFont.ascender - boldFont.descender + boldFont.leading
+        )
+        return max(24, ceil(textHeight) + 8)
+    }
+
+    private func menuIntercellSpacing() -> NSSize {
+        NSSize(width: 0, height: 0)
+    }
+
+    private func updateTableMetrics() {
+        let rowHeight = menuRowHeight()
+        let spacing = menuIntercellSpacing()
+        tableView.rowHeight = rowHeight
+        tableView.intercellSpacing = spacing
+        folderTableView.rowHeight = rowHeight
+        folderTableView.intercellSpacing = spacing
+        invalidateRowHeights(tableView)
+        invalidateRowHeights(folderTableView)
+    }
+
+    private func integerPreference(_ key: String, fallback: Int) -> Int {
+        let defaults = AppEnvironment.current.defaults
+        guard defaults.object(forKey: key) != nil else { return fallback }
+        return defaults.integer(forKey: key)
+    }
+
+    private func menuDisplayTitle(_ title: String) -> String {
+        title.replace(pattern: "\\s+", withTemplate: " ").trim
+    }
+
     private func resizePanel() {
-        let rowCount = min(filteredClips.count, 12)
-        let listHeight = CGFloat(rowCount) * (tableView.rowHeight + tableView.intercellSpacing.height) + 8
-        let totalHeight = 24 + 10 + 1 + 4 + listHeight + 4 + 12
+        let maxHeight = maxMenuHeight(for: panel)
+        let rowCount = min(filteredRows.count, maxMainRowCount(for: maxHeight))
+        let listHeight = rowsHeightForRows(rowCount, tableView: tableView) + listBottomPadding(for: tableView)
+        let chromeHeight: CGFloat = panelMode == .history
+            ? 24 + 8 + 1 + 4 + 4 + 8 + 6
+            : Self.snippetVerticalInset
+        let totalHeight = chromeHeight + listHeight
+        let minHeight: CGFloat = panelMode == .history
+            ? 60
+            : chromeHeight + minimumRowHeight(tableView) + listBottomPadding(for: tableView)
         var frame = panel.frame
-        frame.size.height = max(totalHeight, 80)
-        frame.origin.y -= (frame.size.height - panel.frame.size.height)
+        let oldHeight = frame.size.height
+        frame.size.width = panelWidth()
+        frame.size.height = min(max(totalHeight, minHeight), maxHeight)
+        frame.origin.y -= (frame.size.height - oldHeight)
         panel.setFrame(frame, display: true, animate: false)
+        layoutTableDocumentView(tableView)
+    }
+
+    private func resizeFolderPanel(anchorRow row: Int) {
+        let maxHeight = maxMenuHeight(for: folderPanel)
+        let rowCount = min(folderTableView.numberOfRows, maxFolderRowCount(for: maxHeight))
+        let verticalInset = folderSnippets.isEmpty ? Self.folderVerticalPadding : Self.snippetVerticalInset
+        let topInset = folderSnippets.isEmpty ? Self.folderTopInset : Self.snippetTopInset
+        folderTopConstraint?.constant = folderSnippets.isEmpty ? Self.folderTopInset : Self.snippetTopInset
+        folderBottomConstraint?.constant = folderSnippets.isEmpty ? -Self.folderBottomInset : -Self.snippetBottomInset
+        folderContainerView.layoutSubtreeIfNeeded()
+        folderTableView.layoutSubtreeIfNeeded()
+        let rowsHeight = rowCount > 0
+            ? rowsHeightForRows(rowCount, tableView: folderTableView)
+            : minimumRowHeight(folderTableView)
+        let listHeight = rowsHeight + verticalInset + listBottomPadding(for: folderTableView)
+        var frame = folderPanel.frame
+        frame.size.width = panelWidth()
+        frame.size.height = min(max(listHeight, rowPitch(folderTableView) + verticalInset + listBottomPadding(for: folderTableView)), maxHeight)
+
+        let rowRect = tableView.rect(ofRow: row)
+        let rowWindowRect = tableView.convert(rowRect, to: nil)
+        let rowScreenRect = panel.convertToScreen(rowWindowRect)
+
+        frame.origin = NSPoint(
+            x: panel.frame.maxX + 2,
+            y: rowScreenRect.maxY + topInset - frame.height
+        )
+
+        if let screen = panel.screen ?? NSScreen.main {
+            if frame.maxX > screen.visibleFrame.maxX {
+                frame.origin.x = panel.frame.minX - frame.width - 2
+                folderPanelSide = .left
+            } else {
+                folderPanelSide = .right
+            }
+            if frame.minY < screen.visibleFrame.minY {
+                frame.origin.y = screen.visibleFrame.minY
+            }
+            if frame.maxY > screen.visibleFrame.maxY {
+                frame.origin.y = screen.visibleFrame.maxY - frame.height
+            }
+        }
+
+        folderPanel.setFrame(frame, display: true, animate: false)
+        if !folderSnippets.isEmpty {
+            layoutTableDocumentView(folderTableView)
+        }
+    }
+
+    private func layoutTableDocumentView(_ tableView: NSTableView) {
+        guard let clipView = tableView.enclosingScrollView?.contentView else { return }
+        tableView.enclosingScrollView?.superview?.layoutSubtreeIfNeeded()
+        tableView.enclosingScrollView?.layoutSubtreeIfNeeded()
+        clipView.layoutSubtreeIfNeeded()
+        tableView.layoutSubtreeIfNeeded()
+        var frame = tableView.frame
+        frame.size.width = clipView.bounds.width
+        frame.size.height = rowsHeightForRows(tableView.numberOfRows, tableView: tableView) + listBottomPadding(for: tableView)
+        frame.origin = .zero
+        tableView.frame = frame
+        clipView.scroll(to: .zero)
+        tableView.enclosingScrollView?.reflectScrolledClipView(clipView)
+    }
+
+    private func maxMenuHeight(for window: NSWindow) -> CGFloat {
+        let visibleHeight = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 600
+        return max(60, visibleHeight - 16)
+    }
+
+    private func maxMainRowCount(for maxHeight: CGFloat) -> Int {
+        let nonRowHeight: CGFloat = panelMode == .history
+            ? 24 + 8 + 1 + 4 + 6 + 4 + 8
+            : Self.snippetVerticalInset + Self.snippetListBottomPadding
+        return max(1, Int((maxHeight - nonRowHeight) / rowPitch(tableView)))
+    }
+
+    private func maxFolderRowCount(for maxHeight: CGFloat) -> Int {
+        let verticalInset = folderSnippets.isEmpty ? Self.folderVerticalPadding : Self.snippetVerticalInset
+        let nonRowHeight = verticalInset + listBottomPadding(for: folderTableView)
+        return max(1, Int((maxHeight - nonRowHeight) / rowPitch(folderTableView)))
+    }
+
+    private func listBottomPadding(for tableView: NSTableView) -> CGFloat {
+        if tableView.identifier == Self.mainTableIdentifier, panelMode == .snippet {
+            return Self.snippetListBottomPadding
+        }
+        if tableView.identifier == Self.folderTableIdentifier {
+            return Self.submenuListBottomPadding
+        }
+        return 0
+    }
+
+    private func invalidateRowHeights(_ tableView: NSTableView) {
+        guard tableView.numberOfRows > 0 else { return }
+        tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+    }
+
+    private func rowsHeightForRows(_ rowCount: Int, tableView: NSTableView) -> CGFloat {
+        guard rowCount > 0 else { return 0 }
+        let lastRow = min(rowCount, tableView.numberOfRows) - 1
+        guard lastRow >= 0 else { return 0 }
+        tableView.layoutSubtreeIfNeeded()
+        return ceilToBackingPixel(tableView.rect(ofRow: lastRow).maxY, in: tableView)
+    }
+
+    private func rowPitch(_ tableView: NSTableView) -> CGFloat {
+        tableView.rowHeight + tableView.intercellSpacing.height
+    }
+
+    private func minimumRowHeight(_ tableView: NSTableView) -> CGFloat {
+        ceilToBackingPixel(rowPitch(tableView), in: tableView)
+    }
+
+    private func ceilToBackingPixel(_ value: CGFloat, in view: NSView) -> CGFloat {
+        let scale = view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
+        return ceil(value * scale) / scale
     }
 
     private func positionPanel(near screenPoint: NSPoint) {
@@ -241,11 +967,34 @@ final class ClipSearchPanelController: NSObject {
 
     private func selectCurrentItem() {
         let row = tableView.selectedRow
-        guard row >= 0, row < filteredClips.count else { return }
-        let clip = filteredClips[row]
-        let targetApp = lastActiveApp
-        close(restoreFocus: false)
-        pasteToApp(targetApp, clip: clip)
+        guard row >= 0, row < filteredRows.count else { return }
+
+        switch filteredRows[row] {
+        case let .folder(_, range):
+            showFolder(range, from: row, activate: true)
+        case let .clip(clip, _):
+            let targetApp = lastActiveApp
+            close(restoreFocus: false)
+            pasteToApp(targetApp, clip: clip)
+        case let .snippetFolder(_, snippets):
+            showSnippetFolder(snippets, from: row, activate: true)
+        case let .snippet(snippet, _):
+            let targetApp = lastActiveApp
+            close(restoreFocus: false)
+            pasteSnippetToApp(targetApp, snippet: snippet)
+        }
+    }
+
+    private func clip(at row: Int) -> CPYClip? {
+        guard row >= 0, row < filteredRows.count else { return nil }
+        guard case let .clip(clip, _) = filteredRows[row] else { return nil }
+        return clip
+    }
+
+    private func snippet(at row: Int) -> CPYSnippet? {
+        guard row >= 0, row < filteredRows.count else { return nil }
+        guard case let .snippet(snippet, _) = filteredRows[row] else { return nil }
+        return snippet
     }
 
     private func pasteToApp(_ targetApp: NSRunningApplication?, clip: CPYClip) {
@@ -280,15 +1029,73 @@ final class ClipSearchPanelController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { paste() }
     }
 
-    @objc private func tableViewDoubleClicked() {
+    private func pasteSnippetToApp(_ targetApp: NSRunningApplication?, snippet: CPYSnippet) {
+        guard !snippet.isInvalidated else { return }
+
+        let paste = {
+            AppEnvironment.current.pasteService.copyToPasteboard(with: snippet.content)
+            AppEnvironment.current.pasteService.paste()
+        }
+
+        guard let targetApp = targetApp else {
+            paste()
+            return
+        }
+
+        var token: Any?
+        var fired = false
+        let pasteOnce = {
+            guard !fired else { return }
+            fired = true
+            if let t = token { NSWorkspace.shared.notificationCenter.removeObserver(t); token = nil }
+            paste()
+        }
+
+        token = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            let activated = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard activated?.processIdentifier == targetApp.processIdentifier else { return }
+            pasteOnce()
+        }
+
+        targetApp.activate(options: [])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { pasteOnce() }
+    }
+
+    @objc private func tableViewClicked() {
+        selectClickedRow(in: tableView)
         selectCurrentItem()
+    }
+
+    @objc private func tableViewDoubleClicked() {
+        selectClickedRow(in: tableView)
+        selectCurrentItem()
+    }
+
+    @objc private func folderTableViewClicked() {
+        selectClickedRow(in: folderTableView)
+        selectCurrentFolderItem()
+    }
+
+    @objc private func folderTableViewDoubleClicked() {
+        selectClickedRow(in: folderTableView)
+        selectCurrentFolderItem()
     }
 
     // MARK: - Event Monitors
 
     private func installEventMonitors() {
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.close()
+            guard let self = self else { return }
+            let mouseLocation = NSEvent.mouseLocation
+            guard !self.panel.frame.contains(mouseLocation),
+                  !self.folderPanel.frame.contains(mouseLocation) else { return }
+            let frontmostApp = NSWorkspace.shared.frontmostApplication
+            let isClipyFrontmost = frontmostApp?.bundleIdentifier == Bundle.main.bundleIdentifier
+            self.close(restoreFocus: !isClipyFrontmost)
         }
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
@@ -301,35 +1108,368 @@ final class ClipSearchPanelController: NSObject {
         if let m = localEventMonitor { NSEvent.removeMonitor(m); localEventMonitor = nil }
     }
 
+    private func installSearchObserver() {
+        searchObserver = NotificationCenter.default.addObserver(
+            forName: NSControl.textDidChangeNotification,
+            object: searchField,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            self.applyFilter(self.searchField.stringValue)
+        }
+    }
+
+    private func removeSearchObserver() {
+        if let o = searchObserver { NotificationCenter.default.removeObserver(o); searchObserver = nil }
+    }
+
+    private func selectClickedRow(in tableView: NSTableView) {
+        guard let window = tableView.window else { return }
+        let windowPoint = window.mouseLocationOutsideOfEventStream
+        let tablePoint = tableView.convert(windowPoint, from: nil)
+        let row = tableView.row(at: tablePoint)
+        guard row >= 0, row < tableView.numberOfRows else { return }
+        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        tableView.scrollRowToVisible(row)
+    }
+
+    private func rememberFrontmostApp() {
+        guard let front = NSWorkspace.shared.frontmostApplication,
+              front.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+        lastActiveApp = front
+    }
+
+    private func hasMarkedText() -> Bool {
+        guard panelMode == .history else { return false }
+        guard let editor = searchField.currentEditor() as? NSTextView else { return false }
+        return editor.markedRange().length > 0
+    }
+
+    private var isEditingSearchText: Bool {
+        searchField.currentEditor() != nil
+    }
+
+    private func select(row: Int, showTooltip: Bool = true) {
+        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        tableView.scrollRowToVisible(row)
+        if showTooltip {
+            showSelectionTooltip(for: tableView)
+        }
+    }
+
+    private func nextSelectableRow(from row: Int) -> Int? {
+        let next = row + 1
+        return next < filteredRows.count ? next : nil
+    }
+
+    private func previousSelectableRow(from row: Int) -> Int? {
+        let prev = row - 1
+        return prev >= 0 ? prev : nil
+    }
+
+    private func selectFolder(row: Int) {
+        folderTableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        folderTableView.scrollRowToVisible(row)
+        showSelectionTooltip(for: folderTableView)
+    }
+
+    private func nextFolderRow(from row: Int) -> Int? {
+        let next = row + 1
+        return next < folderTableView.numberOfRows ? next : nil
+    }
+
+    private func previousFolderRow(from row: Int) -> Int? {
+        let prev = row - 1
+        return prev >= 0 && folderTableView.numberOfRows > 0 ? prev : nil
+    }
+
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
         switch event.keyCode {
         case 53: // Escape
             close()
             return nil
         case 36, 76: // Return, numpad Enter
-            selectCurrentItem()
+            guard !hasMarkedText() else { return event }
+            if activeList == .folder, folderPanel.isVisible {
+                selectCurrentFolderItem()
+            } else {
+                selectCurrentItem()
+            }
             return nil
-        case 125: // Down arrow
-            let next = min(tableView.selectedRow + 1, filteredClips.count - 1)
-            tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
-            tableView.scrollRowToVisible(next)
+        case 123: // Left arrow
+            if activeList == .folder, folderPanelSide == .right {
+                activeList = .main
+                folderPanel.orderOut(nil)
+                hideSelectionTooltip()
+                return nil
+            }
+            if activeList == .main, folderPanelSide == .left {
+                return activateSelectedFolder() ? nil : event
+            }
+            return event
+        case 124: // Right arrow
+            guard !hasMarkedText() else { return event }
+            if activeList == .folder, folderPanelSide == .left {
+                activeList = .main
+                folderPanel.orderOut(nil)
+                hideSelectionTooltip()
+                return nil
+            }
+            if activeList == .main, folderPanelSide == .right {
+                return activateSelectedFolder() ? nil : event
+            }
+            return event
+        case 125: // Down arrow — pass through while IME candidate list is active
+            if hasMarkedText() { return event }
+            if activeList == .folder, folderPanel.isVisible {
+                guard let next = nextFolderRow(from: folderTableView.selectedRow) else { return nil }
+                selectFolder(row: next)
+                return nil
+            }
+            guard let next = nextSelectableRow(from: tableView.selectedRow) else { return nil }
+            activeList = .main
+            select(row: next)
+            showFolderIfNeeded(at: next)
             return nil
-        case 126: // Up arrow
-            let prev = max(tableView.selectedRow - 1, 0)
-            tableView.selectRowIndexes(IndexSet(integer: prev), byExtendingSelection: false)
-            tableView.scrollRowToVisible(prev)
+        case 126: // Up arrow — pass through while IME candidate list is active
+            if hasMarkedText() { return event }
+            if activeList == .folder, folderPanel.isVisible {
+                guard let prev = previousFolderRow(from: folderTableView.selectedRow) else { return nil }
+                selectFolder(row: prev)
+                return nil
+            }
+            guard let prev = previousSelectableRow(from: tableView.selectedRow) else { return nil }
+            activeList = .main
+            select(row: prev)
+            showFolderIfNeeded(at: prev)
             return nil
         default:
-            return event
+            // Number key quick-select: only when search is empty and IME is idle
+            guard panelMode == .history,
+                  searchField.stringValue.isEmpty,
+                  !hasMarkedText(),
+                  AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.addNumericKeyEquivalents),
+                  let chars = event.characters, chars.count == 1,
+                  let digit = chars.first, digit.isNumber else { return event }
+            let listNumber = digit == "0" ? 10 : Int(String(digit))!
+            guard let row = filteredRows.firstIndex(where: {
+                guard case let .clip(_, number) = $0 else { return false }
+                return number == listNumber
+            }) else { return event }
+            select(row: row)
+            selectCurrentItem()
+            return nil
+        }
+    }
+
+    private func showFolderIfNeeded(at row: Int) {
+        guard row >= 0, row < filteredRows.count else { return }
+        switch filteredRows[row] {
+        case let .folder(_, range):
+            hideSelectionTooltip()
+            showFolder(range, from: row)
+        case let .snippetFolder(_, snippets):
+            hideSelectionTooltip()
+            showSnippetFolder(snippets, from: row)
+        default:
+            folderPanel.orderOut(nil)
+            activeList = .main
+            showSelectionTooltip(for: tableView)
+        }
+    }
+
+    private func activateSelectedFolder() -> Bool {
+        guard tableView.selectedRow >= 0,
+              tableView.selectedRow < filteredRows.count else { return false }
+        switch filteredRows[tableView.selectedRow] {
+        case let .folder(_, range):
+            showFolder(range, from: tableView.selectedRow, activate: true)
+            return true
+        case let .snippetFolder(_, snippets):
+            showSnippetFolder(snippets, from: tableView.selectedRow, activate: true)
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func selectCurrentFolderItem() {
+        let row = folderTableView.selectedRow
+        let targetApp = lastActiveApp
+        if row >= 0, row < folderClips.count {
+            let clip = folderClips[row]
+            close(restoreFocus: false)
+            pasteToApp(targetApp, clip: clip)
+        } else if row >= 0, row < folderSnippets.count {
+            let snippet = folderSnippets[row]
+            close(restoreFocus: false)
+            pasteSnippetToApp(targetApp, snippet: snippet)
+        }
+    }
+
+    private func hideSelectionTooltip() {
+        tooltipPanel.orderOut(nil)
+    }
+
+    private func tooltipTitle(for tableView: NSTableView, row: Int) -> String? {
+        if tableView.identifier == Self.folderTableIdentifier {
+            if row >= 0, row < folderClips.count {
+                return tooltipDisplayTitle(folderClips[row].title)
+            }
+            guard row >= 0, row < folderSnippets.count else { return nil }
+            return tooltipDisplayTitle(folderSnippets[row].content)
+        }
+
+        guard row >= 0, row < filteredRows.count else { return nil }
+        switch filteredRows[row] {
+        case let .clip(clip, _):
+            return tooltipDisplayTitle(clip.title)
+        case let .snippet(snippet, _):
+            return tooltipDisplayTitle(snippet.content)
+        default:
+            return nil
+        }
+    }
+
+    private func tooltipDisplayTitle(_ title: String) -> String {
+        title
+            .replace(pattern: "\\r\\n?", withTemplate: "\n")
+            .replace(pattern: "[\\t ]+", withTemplate: " ")
+            .trim
+    }
+
+    private func showSelectionTooltip(for tableView: NSTableView) {
+        let row = tableView.selectedRow
+        guard let title = tooltipTitle(for: tableView, row: row), !title.isEmpty else {
+            hideSelectionTooltip()
+            return
+        }
+
+        let maxLength = integerPreference(Preferences.Menu.maxLengthOfToolTip, fallback: 100)
+        let titleNSString = title as NSString
+        let clippedTitle = titleNSString.substring(to: min(titleNSString.length, maxLength))
+        tooltipLabel.stringValue = clippedTitle
+        tooltipLabel.font = NSFont.systemFont(ofSize: 13)
+        tooltipLabel.textColor = tooltipContainerView.textColor()
+
+        let font = tooltipLabel.font ?? NSFont.systemFont(ofSize: 13)
+        let maxTextSize = NSSize(width: 406, height: 120)
+        let textRect = (clippedTitle as NSString).boundingRect(
+            with: maxTextSize,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font]
+        )
+        let width = min(max(ceil(textRect.width) + 16, 32), 422)
+        let height = min(max(ceil(textRect.height) + 8, 22), 128)
+        var frame = tooltipPanel.frame
+        frame.size = NSSize(width: width, height: height)
+
+        let rowRect = tableView.rect(ofRow: row)
+        let rowWindowRect = tableView.convert(rowRect, to: nil)
+        let rowScreenRect = tableView.window?.convertToScreen(rowWindowRect) ?? .zero
+        frame.origin = NSPoint(x: rowScreenRect.maxX + 6,
+                               y: rowScreenRect.maxY - frame.height - 1)
+
+        if let screen = tableView.window?.screen ?? NSScreen.main {
+            if frame.maxX > screen.visibleFrame.maxX {
+                frame.origin.x = rowScreenRect.minX - frame.width - 6
+            }
+            if frame.minY < screen.visibleFrame.minY {
+                frame.origin.y = screen.visibleFrame.minY
+            }
+            if frame.maxY > screen.visibleFrame.maxY {
+                frame.origin.y = screen.visibleFrame.maxY - frame.height
+            }
+        }
+
+        tooltipPanel.setFrame(frame, display: true, animate: false)
+        tooltipPanel.orderFrontRegardless()
+    }
+}
+
+// MARK: - NSSearchFieldDelegate
+
+extension ClipSearchPanelController: NSSearchFieldDelegate {
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        switch commandSelector {
+        case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
+            guard !hasMarkedText() else { return false }
+            if activeList == .folder, folderPanel.isVisible {
+                selectCurrentFolderItem()
+            } else {
+                selectCurrentItem()
+            }
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            close()
+            return true
+        default:
+            return false
         }
     }
 }
 
-// MARK: - NSTextFieldDelegate
+// MARK: - ClipCellView
 
-extension ClipSearchPanelController: NSTextFieldDelegate {
-    func controlTextDidChange(_ obj: Notification) {
-        applyFilter(searchField.stringValue)
+// Properly handles text color inversion on selection (Dark Mode / Light Mode compatible).
+// NSTableView calls backgroundStyle automatically when selection changes.
+private class ClipCellView: NSTableCellView {
+    var plainTitle: String = ""
+    var query: String = ""
+    var listNumber: Int?
+    var isGroupHeader = false
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { applyDisplay() }
+    }
+
+    func applyDisplay() {
+        guard let tf = textField else { return }
+        if isGroupHeader {
+            tf.font = NSFont.boldSystemFont(ofSize: tf.font?.pointSize ?? NSFont.systemFontSize)
+            tf.textColor = backgroundStyle == .emphasized ? .selectedMenuItemTextColor : .secondaryLabelColor
+            tf.stringValue = plainTitle
+            return
+        }
+
+        let prefix = numberPrefix()
+        let display = prefix + plainTitle
+        if backgroundStyle == .emphasized {
+            tf.textColor = .selectedMenuItemTextColor
+            tf.stringValue = display
+        } else {
+            tf.textColor = .labelColor
+            if query.isEmpty {
+                tf.stringValue = display
+            } else {
+                tf.attributedStringValue = highlighted(display, query: query, prefixLength: prefix.count)
+            }
+        }
+    }
+
+    private func numberPrefix() -> String {
+        let defaults = AppEnvironment.current.defaults
+        guard let listNumber = listNumber else { return "" }
+        guard defaults.bool(forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers),
+              defaults.bool(forKey: Preferences.Menu.addNumericKeyEquivalents),
+              listNumber <= 10 else { return "" }
+        return listNumber == 10 ? "0. " : "\(listNumber). "
+    }
+
+    private func highlighted(_ text: String, query: String, prefixLength: Int) -> NSAttributedString {
+        let font = textField?.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let base: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.labelColor, .font: font]
+        let att = NSMutableAttributedString(string: text, attributes: base)
+        // Only highlight within the title portion (skip prefix)
+        let titlePart = String(text.dropFirst(prefixLength))
+        guard let range = titlePart.range(of: query, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) else {
+            return att
+        }
+        let offset = text.distance(from: text.startIndex, to: text.index(text.startIndex, offsetBy: prefixLength))
+        let nsRange = NSRange(range, in: titlePart)
+        att.addAttribute(.foregroundColor, value: NSColor.red,
+                         range: NSRange(location: nsRange.location + offset, length: nsRange.length))
+        return att
     }
 }
 
@@ -337,50 +1477,121 @@ extension ClipSearchPanelController: NSTextFieldDelegate {
 
 extension ClipSearchPanelController: NSTableViewDataSource, NSTableViewDelegate {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        filteredClips.count
+        if tableView.identifier == Self.folderTableIdentifier {
+            return folderClips.isEmpty ? folderSnippets.count : folderClips.count
+        }
+        return filteredRows.count
+    }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        ClipRowView()
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        true
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let id = NSUserInterfaceItemIdentifier("ClipCell")
-        let cell: NSTableCellView
-        if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView {
+        let cell: ClipCellView
+        if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? ClipCellView {
             cell = reused
         } else {
-            cell = NSTableCellView()
+            cell = ClipCellView()
             cell.identifier = id
             let tf = NSTextField()
+            tf.cell = MenuItemTextFieldCell(textCell: "")
             tf.isBordered = false
             tf.drawsBackground = false
             tf.isEditable = false
             tf.lineBreakMode = .byTruncatingTail
+            tf.cell?.usesSingleLineMode = true
+            tf.cell?.wraps = false
+            tf.cell?.isScrollable = true
+            tf.maximumNumberOfLines = 1
             tf.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(tf)
             cell.textField = tf
             NSLayoutConstraint.activate([
                 tf.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
                 tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -10),
-                tf.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                tf.topAnchor.constraint(equalTo: cell.topAnchor),
+                tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor)
             ])
         }
 
-        let clip = filteredClips[row]
-        let query = searchField.stringValue
+        cell.textField?.font = NSFont.systemFont(ofSize: menuFontSize())
 
-        if query.isEmpty {
-            cell.textField?.attributedStringValue = NSAttributedString(string: clip.title)
-        } else {
-            cell.textField?.attributedStringValue = highlighted(clip.title, query: query)
+        if tableView.identifier == Self.folderTableIdentifier {
+            let title: String
+            if row < folderClips.count {
+                title = menuDisplayTitle(folderClips[row].title)
+            } else {
+                title = menuDisplayTitle(folderSnippets[row].title)
+            }
+            cell.plainTitle = title
+            cell.query = ""
+            cell.listNumber = nil
+            cell.isGroupHeader = false
+            cell.toolTip = nil
+            cell.textField?.toolTip = nil
+            cell.applyDisplay()
+            return cell
         }
+
+        switch filteredRows[row] {
+        case let .folder(title, _):
+            cell.plainTitle = title
+            cell.query = ""
+            cell.listNumber = nil
+            cell.isGroupHeader = true
+            cell.toolTip = nil
+            cell.textField?.toolTip = nil
+        case let .snippetFolder(folder, _):
+            cell.plainTitle = menuDisplayTitle(folder.title)
+            cell.query = ""
+            cell.listNumber = nil
+            cell.isGroupHeader = true
+            cell.toolTip = nil
+            cell.textField?.toolTip = nil
+        case let .clip(clip, listNumber):
+            let title = menuDisplayTitle(clip.title)
+            cell.plainTitle = title
+            cell.query = searchField.stringValue
+            cell.listNumber = listNumber
+            cell.isGroupHeader = false
+            cell.toolTip = nil
+            cell.textField?.toolTip = nil
+        case let .snippet(snippet, listNumber):
+            let title = menuDisplayTitle(snippet.title)
+            cell.plainTitle = title
+            cell.query = ""
+            cell.listNumber = listNumber
+            cell.isGroupHeader = false
+            cell.toolTip = nil
+            cell.textField?.toolTip = nil
+        }
+        cell.applyDisplay()
 
         return cell
     }
 
-    private func highlighted(_ text: String, query: String) -> NSAttributedString {
-        let att = NSMutableAttributedString(string: text)
-        guard let range = text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) else {
-            return att
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        guard !suppressSelectionSideEffects else { return }
+        guard let changedTableView = notification.object as? NSTableView else { return }
+        if changedTableView.identifier == Self.mainTableIdentifier {
+            showFolderIfNeeded(at: changedTableView.selectedRow)
+        } else if changedTableView.identifier == Self.folderTableIdentifier {
+            showSelectionTooltip(for: changedTableView)
         }
-        att.addAttribute(.foregroundColor, value: NSColor.systemRed, range: NSRange(range, in: text))
-        return att
+    }
+
+    func tableView(_ tableView: NSTableView,
+                   toolTipFor cell: NSCell,
+                   rect: NSRectPointer,
+                   tableColumn: NSTableColumn?,
+                   row: Int,
+                   mouseLocation: NSPoint) -> String {
+        ""
     }
 }
