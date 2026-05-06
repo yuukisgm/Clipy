@@ -319,6 +319,7 @@ final class ClipSearchPanelController: NSObject {
         t.action = #selector(tableViewClicked)
         t.doubleAction = #selector(tableViewDoubleClicked)
         t.hoverSelectionHandler = { [weak self] tableView in
+            self?.suppressInitialTooltip = false
             self?.showFolderIfNeeded(at: tableView.selectedRow)
         }
         return t
@@ -415,6 +416,7 @@ final class ClipSearchPanelController: NSObject {
         t.action = #selector(folderTableViewClicked)
         t.doubleAction = #selector(folderTableViewDoubleClicked)
         t.hoverSelectionHandler = { [weak self] tableView in
+            self?.suppressInitialTooltip = false
             self?.showSelectionTooltip(for: tableView)
         }
         return t
@@ -456,7 +458,6 @@ final class ClipSearchPanelController: NSObject {
     private weak var folderTableViewRef: NSTableView?
     private var suppressSelectionSideEffects = false
     private var suppressInitialTooltip = false
-    private var initialTooltipRow = -1
     private var realm = try! Realm()
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
@@ -555,7 +556,6 @@ final class ClipSearchPanelController: NSObject {
         updateTableMetrics()
         loadClips()
         suppressInitialTooltip = true
-        initialTooltipRow = -1
         applyFilter("")
 
         resizePanel()
@@ -589,7 +589,6 @@ final class ClipSearchPanelController: NSObject {
         applyPanelModeLayout()
         updateTableMetrics()
         suppressInitialTooltip = true
-        initialTooltipRow = -1
         loadSnippetRows()
 
         resizePanel()
@@ -615,7 +614,6 @@ final class ClipSearchPanelController: NSObject {
         applyPanelModeLayout()
         updateTableMetrics()
         suppressInitialTooltip = true
-        initialTooltipRow = -1
         filteredRows = enabledSnippets(in: folder).enumerated().map { .snippet($0.element, listNumber: $0.offset + 1) }
         folderPanel.orderOut(nil)
         tableView.reloadData()
@@ -1229,6 +1227,7 @@ final class ClipSearchPanelController: NSObject {
             return event
         case 125: // Down arrow — pass through while IME candidate list is active
             if hasMarkedText() { return event }
+            suppressInitialTooltip = false
             if activeList == .folder, folderPanel.isVisible {
                 guard let next = nextFolderRow(from: folderTableView.selectedRow) else { return nil }
                 selectFolder(row: next)
@@ -1241,6 +1240,7 @@ final class ClipSearchPanelController: NSObject {
             return nil
         case 126: // Up arrow — pass through while IME candidate list is active
             if hasMarkedText() { return event }
+            suppressInitialTooltip = false
             if activeList == .folder, folderPanel.isVisible {
                 guard let prev = previousFolderRow(from: folderTableView.selectedRow) else { return nil }
                 selectFolder(row: prev)
@@ -1348,13 +1348,9 @@ final class ClipSearchPanelController: NSObject {
 
     private func showSelectionTooltip(for tableView: NSTableView) {
         let row = tableView.selectedRow
-        if suppressInitialTooltip, tableView === self.tableView {
-            if initialTooltipRow < 0 || row == initialTooltipRow {
-                initialTooltipRow = row
-                hideSelectionTooltip()
-                return
-            }
-            suppressInitialTooltip = false
+        if suppressInitialTooltip {
+            hideSelectionTooltip()
+            return
         }
         guard let title = tooltipTitle(for: tableView, row: row), !title.isEmpty else {
             hideSelectionTooltip()
