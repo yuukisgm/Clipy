@@ -20,6 +20,7 @@ import RxScreeen
 import RealmSwift
 import LetsMove
 import LaunchAtLogin
+import PINCache
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSMenuItemValidation {
@@ -178,6 +179,11 @@ extension AppDelegate: NSApplicationDelegate {
         CPYUtilities.registerUserDefaultKeys()
         // Check Accessibility Permission
         AppEnvironment.current.accessibilityService.isAccessibilityEnabled(isPrompt: true)
+        // PINCache memoryCache の上限を最低限に絞る。default は青天井のため画像コピーで膨張する。
+        // サムネイルは数百 KB なので 5MB あれば直近十数件は memoryCache に残り、
+        // それ以上は diskCache 経由になる。「軽さ」優先の運用方針。
+        PINCache.shared.memoryCache.removeAllObjectsOnEnteringBackground = true
+        PINCache.shared.memoryCache.costLimit = 5 * 1024 * 1024  // 5MB
 
         // Show Login Item
         #if RELEASE

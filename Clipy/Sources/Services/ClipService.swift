@@ -30,8 +30,11 @@ final class ClipService {
     func startMonitoring() {
         disposeBag = DisposeBag()
         // Pasteboard observe timer
+        // macOS は NSPasteboard 用の push 通知を提供しないためポーリングが必要。
+        // 200ms (5Hz) は常時アイドル CPU/電池を浪費する一方、500ms に伸ばしても
+        // 体感のレスポンスはほぼ変わらない。コピー直後にメニューを開く操作にも十分間に合う。
         Observable<Int>
-            .interval(.milliseconds(200), scheduler: scheduler)
+            .interval(.milliseconds(500), scheduler: scheduler)
             .map { _ in NSPasteboard.general.changeCount }
             .withLatestFrom(cachedChangeCount.asObservable()) { ($0, $1) }
             .filter { $0 != $1 }
@@ -85,6 +88,11 @@ final class ClipService {
 
 // MARK: - Create Clip
 extension ClipService {
+    /// 取り込み画像の最長辺を抑える上限。これを超える場合、tiffRepresentation の中間
+    /// ビットマップ (width × height × 4 byte) と保存 Data の両方が一気に膨らむため、
+    /// 取り込み時にダウンサンプルする。普通の Web 画像 (~1920px) は影響なし。
+    fileprivate static let maxImageLongerSide: CGFloat = 4096
+
     fileprivate func create() {
         // Store types
         if !storeTypes.values.contains(NSNumber(value: true)) { return }
@@ -98,59 +106,88 @@ extension ClipService {
         // Special applications
         guard !AppEnvironment.current.excludeAppService.copiedProcessIsExcludedApplications(pasteboard: pasteboard) else { return }
 
-        // Create data
-        let data = CPYClipData(pasteboard: pasteboard, types: types)
-        save(with: data)
+        // 取り込みパス全体を autoreleasepool で囲み、巨大な中間 NSImage / Data を
+        // ループ脱出時に確実に解放させる。これがないと malloc プールに残り続けて
+        // Activity Monitor の RSS が下がらない。
+        autoreleasepool {
+            // 画像が含まれる場合、Pasteboard から NSImage を 1 度だけ作って下流で使い回す。
+            // 過剰解像度はここでダウンサンプルしてから後段に渡す。
+            var preloadedImage: NSImage? = nil
+            if types.contains(.png) || types.contains(.tiff) {
+                if let raw = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
+                    preloadedImage = raw.downscaledIfNeeded(maxLongerSide: Self.maxImageLongerSide)
+                }
+            }
+
+            let data = CPYClipData(pasteboard: pasteboard, types: types, preloadedImage: preloadedImage)
+            save(with: data, preloadedImage: preloadedImage)
+        }
     }
 
     func create(with title: String, image: NSImage) {
         // Create only image data
-        let data = CPYClipData(title: title, image: image)
-        save(with: data)
+        let downsampled = image.downscaledIfNeeded(maxLongerSide: Self.maxImageLongerSide)
+        let data = CPYClipData(title: title, image: downsampled)
+        save(with: data, preloadedImage: downsampled)
     }
 
-    fileprivate func save(with data: CPYClipData) {
+    fileprivate func save(with data: CPYClipData, preloadedImage: NSImage? = nil) {
         // Don't save empty string history
         if !data.isValid { return }
 
         DispatchQueue.global(qos: .userInteractive).async {
-            // Saved time and path
-            let unixTime = Int(Date().timeIntervalSince1970)
-            let savedPath = CPYUtilities.applicationSupportFolder() + "/\(NSUUID().uuidString).data"
-            // Create Realm object
-            let clip = CPYClip()
-            clip.dataHash = data.identifier
-            clip.dataPath = savedPath
-            clip.title = data.stringValue?[0...10000] ?? ""
-            clip.updateTime = unixTime
-            clip.primaryType = data.primaryType?.rawValue ?? ""
+            autoreleasepool {
+                // Saved time and path
+                let unixTime = Int(Date().timeIntervalSince1970)
+                let savedPath = CPYUtilities.applicationSupportFolder() + "/\(NSUUID().uuidString).data"
+                // Create Realm object
+                let clip = CPYClip()
+                clip.dataHash = data.identifier
+                clip.dataPath = savedPath
+                clip.title = data.stringValue?[0...10000] ?? ""
+                clip.updateTime = unixTime
+                clip.primaryType = data.primaryType?.rawValue ?? ""
 
-            // Save thumbnail image
-            if let thumbnailImage = data.thumbnailImage {
-                PINCache.shared.setObjectAsync(thumbnailImage, forKey: "\(unixTime)", completion: nil)
-                clip.thumbnailPath = "\(unixTime)"
-            } else if let colorCodeImage = data.colorCodeImage {
-                PINCache.shared.setObjectAsync(colorCodeImage, forKey: "\(unixTime)", completion: nil)
-                clip.thumbnailPath = "\(unixTime)"
-                clip.isColorCode = true
-            }
-
-            if CPYUtilities.prepareSaveToPath(CPYUtilities.applicationSupportFolder()) {
-                try? JSONEncoder().encode(data).write(to: .init(fileURLWithPath: savedPath))
-
-                DispatchQueue.main.async {
-                    // Save Realm and .data file
-                    let dispatchRealm = try! Realm()
-                    // Clean up the prior on-disk payload when this dataHash already exists,
-                    // so the Realm record always points at a fresh, valid file.
-                    let stalePath = dispatchRealm
-                        .object(ofType: CPYClip.self, forPrimaryKey: clip.dataHash)?
-                        .dataPath
-                    dispatchRealm.transaction {
-                        dispatchRealm.add(clip, update: .all)
+                // Save thumbnail image
+                // preloadedImage があれば直接 cropToSquare し、CPYClipData.thumbnailImage 経由
+                // (Image.image getter が encode 済み Data を再 decode する) のフル解像度 CGImage
+                // 再展開を避ける。これだけで 1 画像あたり 30〜40 MB のピーク削減になる。
+                let thumbnailLength = AppEnvironment.current.defaults.integer(forKey: Preferences.Menu.thumbnailLength)
+                let thumbnailImage: NSImage? = {
+                    if let preloaded = preloadedImage {
+                        return preloaded.cropToSquare(with: CGFloat(thumbnailLength), and: .center)
                     }
-                    if let stalePath = stalePath, stalePath != savedPath {
-                        try? FileManager.default.removeItem(atPath: stalePath)
+                    return data.thumbnailImage
+                }()
+
+                if let thumbnailImage = thumbnailImage {
+                    let cost = UInt(thumbnailImage.size.width * thumbnailImage.size.height * 4)
+                    PINCache.shared.setObjectAsync(thumbnailImage, forKey: "\(unixTime)", withCost: cost, completion: nil)
+                    clip.thumbnailPath = "\(unixTime)"
+                } else if let colorCodeImage = data.colorCodeImage {
+                    let cost = UInt(colorCodeImage.size.width * colorCodeImage.size.height * 4)
+                    PINCache.shared.setObjectAsync(colorCodeImage, forKey: "\(unixTime)", withCost: cost, completion: nil)
+                    clip.thumbnailPath = "\(unixTime)"
+                    clip.isColorCode = true
+                }
+
+                if CPYUtilities.prepareSaveToPath(CPYUtilities.applicationSupportFolder()) {
+                    try? JSONEncoder().encode(data).write(to: .init(fileURLWithPath: savedPath))
+
+                    DispatchQueue.main.async {
+                        // Save Realm and .data file
+                        let dispatchRealm = try! Realm()
+                        // Clean up the prior on-disk payload when this dataHash already exists,
+                        // so the Realm record always points at a fresh, valid file.
+                        let stalePath = dispatchRealm
+                            .object(ofType: CPYClip.self, forPrimaryKey: clip.dataHash)?
+                            .dataPath
+                        dispatchRealm.transaction {
+                            dispatchRealm.add(clip, update: .all)
+                        }
+                        if let stalePath = stalePath, stalePath != savedPath {
+                            try? FileManager.default.removeItem(atPath: stalePath)
+                        }
                     }
                 }
             }
@@ -159,7 +196,15 @@ extension ClipService {
 
     private func types(with pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
         let types = pasteboard.types?.filter { canSave(with: $0) } ?? []
-        return NSOrderedSet(array: types).array as? [NSPasteboard.PasteboardType] ?? []
+        var deduped = NSOrderedSet(array: types).array as? [NSPasteboard.PasteboardType] ?? []
+        // PNG と TIFF は同一画像の二重表現で、Pasteboard に大半の画像で両方が入る。
+        // 双方を取り込むと Pasteboard から NSImage を 2 回作り、tiffRepresentation を
+        // 2 回呼ぶため、巨大画像で中間ビットマップ (width × height × 4 byte) が二重に展開される。
+        // PNG はロスレス・サイズ小・互換性高なので PNG 側を残し TIFF をスキップする。
+        if deduped.contains(.png), let tiffIdx = deduped.firstIndex(of: .tiff) {
+            deduped.remove(at: tiffIdx)
+        }
+        return deduped
     }
 
     private func canSave(with type: NSPasteboard.PasteboardType) -> Bool {

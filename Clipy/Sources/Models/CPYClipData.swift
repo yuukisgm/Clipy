@@ -102,10 +102,10 @@ final class CPYClipData: NSObject, Codable {
     }
 
     // MARK: - Init
-    init(pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) {
+    init(pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType], preloadedImage: NSImage? = nil) {
         super.init()
         self.content = types.compactMap { type in
-            return .init(pasteboard: pasteboard, type: type)
+            return .init(pasteboard: pasteboard, type: type, preloadedImage: preloadedImage)
         }
     }
 
@@ -131,7 +131,7 @@ extension CPYClipData {
         case png(Image)
         case tiff(Image)
 
-        init?(pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType) {
+        init?(pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType, preloadedImage: NSImage? = nil) {
             switch type {
                 case .string:
                     guard let str = pasteboard.string(forType: .string)?.trimTrailing, str.isNotEmpty else { return nil }
@@ -149,11 +149,13 @@ extension CPYClipData {
                     guard let data = pasteboard.data(forType: .rtfd) else { return nil }
                     self = .rtfd(data)
                 case .tiff:
-                    guard let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage else { return nil }
-                    self = .tiff(.init(image: image))
+                    let image = preloadedImage ?? (pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage)
+                    guard let img = image else { return nil }
+                    self = .tiff(.init(image: img))
                 case .png:
-                    guard let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage else { return nil }
-                    self = .png(.init(image: image))
+                    let image = preloadedImage ?? (pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage)
+                    guard let img = image else { return nil }
+                    self = .png(.init(image: img))
                 default:
                     lWarning("unkonwn type:", type)
                     return nil
@@ -231,7 +233,9 @@ struct Image: Codable {
 
     var image: NSImage? {
         get { return content.flatMap(NSImage.init(data:)) }
-        set { content = newValue?.tiffRepresentation(using: .jpeg, factor: 7) }
+        // factor は 0.0〜1.0。以前は 7 を渡しており実質 1.0（無圧縮 TIFF）扱いで
+        // サムネイル .data ファイルが過剰に肥大化していた。0.7 で実質 JPEG 圧縮を効かせる。
+        set { content = newValue?.tiffRepresentation(using: .jpeg, factor: 0.7) }
     }
 }
 

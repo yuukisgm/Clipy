@@ -491,6 +491,7 @@ final class ClipSearchPanelController: NSObject {
     private var localEventMonitor: Any?
     private var resignKeyObserver: Any?
     private var searchObserver: Any?
+    private var searchDebounceWorkItem: DispatchWorkItem?
     // Continuously tracked so we always know where to paste even if frontmostApplication
     // returns nil at the moment the hotkey fires.
     private var lastActiveApp: NSRunningApplication?
@@ -1190,11 +1191,21 @@ final class ClipSearchPanelController: NSObject {
             queue: .main
         ) { [weak self] _ in
             guard let self = self else { return }
-            self.applyFilter(self.searchField.stringValue)
+            // 高速タイプ中は textDidChange が連続発火する。毎打鍵で applyFilter →
+            // tableView.reloadData() を回すと体感が重くなるので 120ms debounce で間引く。
+            self.searchDebounceWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                self.applyFilter(self.searchField.stringValue)
+            }
+            self.searchDebounceWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(120), execute: work)
         }
     }
 
     private func removeSearchObserver() {
+        searchDebounceWorkItem?.cancel()
+        searchDebounceWorkItem = nil
         if let o = searchObserver { NotificationCenter.default.removeObserver(o); searchObserver = nil }
     }
 
