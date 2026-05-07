@@ -1415,6 +1415,10 @@ final class ClipSearchPanelController: NSObject {
             hideSelectionTooltip()
             return
         }
+        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.showToolTipOnMenuItem) else {
+            hideSelectionTooltip()
+            return
+        }
         _ = tooltipContentStack
 
         let clip = tooltipClip(for: tableView, row: row)
