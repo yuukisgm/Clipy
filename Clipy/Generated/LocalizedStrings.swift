@@ -10,6 +10,8 @@ import Foundation
 // swiftlint:disable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:disable nesting type_body_length type_name vertical_whitespace_opening_braces
 internal enum L10n {
+  /// (Image)
+  internal static let image = L10n.tr("Localizable", "(Image)", fallback: "(Image)")
   /// Add
   internal static let add = L10n.tr("Localizable", "Add", fallback: "Add")
   /// Are you sure want to delete this item?
@@ -22,6 +24,8 @@ internal enum L10n {
   internal static let clearHistory = L10n.tr("Localizable", "Clear History", fallback: "Clear History")
   /// Delete Item
   internal static let deleteItem = L10n.tr("Localizable", "Delete Item", fallback: "Delete Item")
+  /// Do not show again
+  internal static let doNotShowAgain = L10n.tr("Localizable", "Do not show again", fallback: "Do not show again")
   /// Don't Launch
   internal static let donTLaunch = L10n.tr("Localizable", "Don't Launch", fallback: "Don't Launch")
   /// General
@@ -34,6 +38,8 @@ internal enum L10n {
   internal static let launchOnSystemStartup = L10n.tr("Localizable", "Launch on system startup", fallback: "Launch on system startup")
   /// Menu
   internal static let menu = L10n.tr("Localizable", "Menu", fallback: "Menu")
+  /// Menu bar icon is now hidden
+  internal static let menuBarIconIsNowHidden = L10n.tr("Localizable", "Menu bar icon is now hidden", fallback: "Menu bar icon is now hidden")
   /// Open System Preferences
   internal static let openSystemPreferences = L10n.tr("Localizable", "Open System Preferences", fallback: "Open System Preferences")
   /// Please allow Accessibility.
@@ -46,6 +52,8 @@ internal enum L10n {
   internal static let quitClipy = L10n.tr("Localizable", "Quit Clipy", fallback: "Quit Clipy")
   /// Restart Clipy
   internal static let restartClipy = L10n.tr("Localizable", "Restart Clipy", fallback: "Restart Clipy")
+  /// Search History…
+  internal static let searchHistory = L10n.tr("Localizable", "Search History…", fallback: "Search History…")
   /// Shortcuts
   internal static let shortcuts = L10n.tr("Localizable", "Shortcuts", fallback: "Shortcuts")
   /// Snippet
@@ -60,6 +68,10 @@ internal enum L10n {
   internal static let updates = L10n.tr("Localizable", "Updates", fallback: "Updates")
   /// You can change this setting in the Preferences if you want.
   internal static let youCanChangeThisSettingInThePreferencesIfYouWant = L10n.tr("Localizable", "You can change this setting in the Preferences if you want", fallback: "You can change this setting in the Preferences if you want.")
+  internal enum ToShowTheIconAgainRelaunchClipy {
+    /// To show the icon again, relaunch Clipy.app from the Applications folder in Finder.
+    internal static let appFromTheApplicationsFolderInFinder = L10n.tr("Localizable", "To show the icon again, relaunch Clipy.app from the Applications folder in Finder.", fallback: "To show the icon again, relaunch Clipy.app from the Applications folder in Finder.")
+  }
 }
 // swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:enable nesting type_body_length type_name vertical_whitespace_opening_braces

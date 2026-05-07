@@ -187,6 +187,7 @@
 		0A61D9FEC1E1412EB6C4779F /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYShortcutsPreferenceViewController.strings; sourceTree = "<group>"; };
 		C6AAC7572C0E471E84FDA49B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYTypePreferenceViewController.strings; sourceTree = "<group>"; };
 		4A7DF9E2A1824B0894E22C25 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYPreferencesWindowController.strings; sourceTree = "<group>"; };
+		62B6484A3AF54C07AF26ADA4 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYSnippetsEditorWindowController.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -773,6 +774,7 @@
 			children = (
 				952E3FE32ACE57C60005DDC2 /* Base */,
 				24EEB97FFFD247858BDDA69F /* ja */,
+				62B6484A3AF54C07AF26ADA4 /* en */,
 			);
 			name = CPYSnippetsEditorWindowController.xib;
 			sourceTree = "<group>";

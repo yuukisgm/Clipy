@@ -374,10 +374,10 @@ private extension MenuManager {
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.alertStyle = .warning
-            alert.messageText = "メニューバーアイコンを非表示にしました"
-            alert.informativeText = "アイコンを再表示するには、Finder の「アプリケーション」フォルダから Clipy.app を開き直してください。"
+            alert.messageText = NSLocalizedString("Menu bar icon is now hidden", comment: "")
+            alert.informativeText = NSLocalizedString("To show the icon again, relaunch Clipy.app from the Applications folder in Finder.", comment: "")
             alert.showsSuppressionButton = true
-            alert.suppressionButton?.title = "今後表示しない"
+            alert.suppressionButton?.title = NSLocalizedString("Do not show again", comment: "")
             alert.addButton(withTitle: "OK")
             alert.runModal()
             if alert.suppressionButton?.state == .on {

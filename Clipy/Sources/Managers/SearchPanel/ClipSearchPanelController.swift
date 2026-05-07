@@ -252,7 +252,7 @@ final class ClipSearchPanelController: NSObject {
         cell.usesSingleLineMode = true
         cell.lineBreakMode = .byTruncatingTail
         f.cell = cell
-        f.placeholderString = "履歴を検索…"
+        f.placeholderString = NSLocalizedString("Search History…", comment: "")
         f.isBordered = false
         f.isBezeled = false
         f.drawsBackground = false
@@ -856,7 +856,7 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func clipListTitle(_ clip: CPYClip) -> String {
-        if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
+        if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
         if let url = URL(string: clip.title), url.scheme == "file" {
             return "📋" + url.lastPathComponent
         }
@@ -1426,7 +1426,7 @@ final class ClipSearchPanelController: NSObject {
         if tableView.identifier == Self.folderTableIdentifier {
             if row >= 0, row < folderClips.count {
                 let clip = folderClips[row]
-                if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
+                if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
                 return tooltipDisplayTitle(clipListTitle(clip))
             }
             guard row >= 0, row < folderSnippets.count else { return nil }
@@ -1436,7 +1436,7 @@ final class ClipSearchPanelController: NSObject {
         guard row >= 0, row < filteredRows.count else { return nil }
         switch filteredRows[row] {
         case let .clip(clip, _):
-            if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
+            if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
             return tooltipDisplayTitle(clipListTitle(clip))
         case let .snippet(snippet, _):
             return tooltipDisplayTitle(snippet.content)

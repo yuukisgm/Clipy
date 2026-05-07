@@ -23,3 +23,8 @@
 "Type" = "タイプ";
 "Updates" = "アップデート";
 "You can change this setting in the Preferences if you want" = "この設定は環境設定で変更できます。";
+"Menu bar icon is now hidden" = "メニューバーアイコンを非表示にしました";
+"To show the icon again, relaunch Clipy.app from the Applications folder in Finder." = "アイコンを再表示するには、Finder の「アプリケーション」フォルダから Clipy.app を開き直してください。";
+"Do not show again" = "今後表示しない";
+"Search History…" = "履歴を検索…";
+"(Image)" = "(画像)";
