@@ -727,7 +727,10 @@ final class ClipSearchPanelController: NSObject {
     private func applyFilter(_ query: String) {
         let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
         let limit = maxShowHistory > 0 ? maxShowHistory : allClips.count
-        let matches = query.isEmpty ? allClips : allClips.filter { $0.title.localizedStandardContains(query) }
+        let matches = query.isEmpty ? allClips : allClips.filter {
+            $0.title.localizedStandardContains(query) ||
+            clipListTitle($0).localizedStandardContains(query)
+        }
         let clips = Array(matches.prefix(limit))
         visibleClips = clips
         folderPanel.orderOut(nil)
@@ -864,7 +867,7 @@ final class ClipSearchPanelController: NSObject {
     private func clipListTitle(_ clip: CPYClip) -> String {
         if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
         if let url = URL(string: clip.title), url.scheme == "file" {
-            return url.lastPathComponent
+            return "📋" + url.lastPathComponent
         }
         return clip.title
     }

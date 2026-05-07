@@ -72,7 +72,14 @@ extension PasteService {
             }
             // Paste history
             if isPastePlainText {
-                copyToPasteboard(with: clipData.stringValue)
+                let plainText: String?
+                if let raw = clipData.stringValue,
+                   let url = URL(string: raw), url.scheme == "file" {
+                    plainText = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+                } else {
+                    plainText = clipData.stringValue
+                }
+                copyToPasteboard(with: plainText)
                 paste()
             } else if isPasteAndDeleteHistory {
                 copyToPasteboard(with: clipData)
