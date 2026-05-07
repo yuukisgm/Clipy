@@ -44,6 +44,10 @@ final class PasteService {
         guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pasteAndDeleteHistory) else { return false }
         return isPressedModifier(AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.pasteAndDeleteHistoryModifier), flags: flags)
     }
+
+    func isDeleteOnlyAction(flags: NSEvent.ModifierFlags) -> Bool {
+        isDeleteHistory(flags: flags) && !isPasteAndDeleteHistory(flags: flags) && !isPastePlainText(flags: flags)
+    }
 }
 
 // MARK: - Copy

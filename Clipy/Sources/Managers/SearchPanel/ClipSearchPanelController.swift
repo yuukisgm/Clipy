@@ -8,15 +8,17 @@ private final class KeyablePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private final class MenuBackgroundView: NSView {
+private final class MenuBackgroundView: NSVisualEffectView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        material = .menu
+        blendingMode = .behindWindow
+        state = .active
         wantsLayer = true
         layer?.cornerRadius = 14
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        layer?.borderWidth = 1
-        applyAppearance()
+        applyBorder()
     }
 
     required init?(coder: NSCoder) {
@@ -25,54 +27,38 @@ private final class MenuBackgroundView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        applyAppearance()
+        applyBorder()
     }
 
-    private func applyAppearance() {
+    private func applyBorder() {
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let background = dark
-            ? NSColor(calibratedWhite: 0.11, alpha: 0.97)
-            : NSColor(calibratedWhite: 0.98, alpha: 0.97)
-        let border = dark
+        layer?.borderWidth = 1
+        layer?.borderColor = (dark
             ? NSColor.white.withAlphaComponent(0.16)
-            : NSColor.black.withAlphaComponent(0.18)
-        layer?.backgroundColor = background.cgColor
-        layer?.borderColor = border.cgColor
+            : NSColor.black.withAlphaComponent(0.18)).cgColor
     }
 }
 
-private final class MenuTooltipBackgroundView: NSView {
+private final class MenuTooltipBackgroundView: NSVisualEffectView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        material = .menu
+        blendingMode = .behindWindow
+        state = .active
         wantsLayer = true
         layer?.cornerRadius = 2
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        layer?.borderWidth = 0
-        applyAppearance()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        applyAppearance()
     }
 
     func textColor() -> NSColor {
         effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(calibratedWhite: 0.86, alpha: 1)
             : NSColor(calibratedWhite: 0.24, alpha: 1)
-    }
-
-    private func applyAppearance() {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let background = dark
-            ? NSColor(calibratedWhite: 0.22, alpha: 0.98)
-            : NSColor(calibratedWhite: 0.89, alpha: 0.98)
-        layer?.backgroundColor = background.cgColor
     }
 }
 
@@ -205,10 +191,6 @@ private final class MenuSearchField: NSTextField {
 
     func applyAppearance() {
         textColor = .labelColor
-        placeholderAttributedString = NSAttributedString(
-            string: placeholderString ?? "",
-            attributes: [.foregroundColor: NSColor.placeholderTextColor]
-        )
     }
 }
 
@@ -725,6 +707,10 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func applyFilter(_ query: String) {
+        rebuildMainTable(query: query, closeFolderPanel: true)
+    }
+
+    private func rebuildMainTable(query: String, closeFolderPanel: Bool) {
         let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
         let limit = maxShowHistory > 0 ? maxShowHistory : allClips.count
         let matches = query.isEmpty ? allClips : allClips.filter {
@@ -733,14 +719,18 @@ final class ClipSearchPanelController: NSObject {
         }
         let clips = Array(matches.prefix(limit))
         visibleClips = clips
-        folderPanel.orderOut(nil)
-        activeList = .main
+        if closeFolderPanel {
+            folderPanel.orderOut(nil)
+            activeList = .main
+        }
         filteredRows = query.isEmpty ? menuRows(from: visibleClips) : visibleClips.map { .clip($0, listNumber: nil) }
+        if !closeFolderPanel { suppressSelectionSideEffects = true }
         tableView.reloadData()
         invalidateRowHeights(tableView)
         if let firstRow = nextSelectableRow(from: -1) {
             select(row: firstRow, showTooltip: false)
         }
+        if !closeFolderPanel { suppressSelectionSideEffects = false }
         resizePanel()
     }
 
@@ -915,7 +905,7 @@ final class ClipSearchPanelController: NSObject {
 
         frame.origin = NSPoint(
             x: panel.frame.maxX + 2,
-            y: rowScreenRect.maxY + topInset - frame.height
+            y: rowScreenRect.maxY + topInset - frame.height + 10
         )
 
         if let screen = panel.screen ?? NSScreen.main {
@@ -1036,9 +1026,17 @@ final class ClipSearchPanelController: NSObject {
         case let .folder(_, range):
             showFolder(range, from: row, activate: true)
         case let .clip(clip, _):
-            let targetApp = lastActiveApp
-            close(restoreFocus: false)
-            pasteToApp(targetApp, clip: clip)
+            let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
+            if AppEnvironment.current.pasteService.isDeleteOnlyAction(flags: capturedFlags) {
+                guard !clip.isInvalidated else { return }
+                AppEnvironment.current.clipService.delete(with: clip)
+                loadClips()
+                applyFilter(searchField.stringValue)
+            } else {
+                let targetApp = lastActiveApp
+                close(restoreFocus: false)
+                pasteToApp(targetApp, clip: clip)
+            }
         case let .snippetFolder(_, snippets):
             showSnippetFolder(snippets, from: row, activate: true)
         case let .snippet(snippet, _):
@@ -1366,8 +1364,42 @@ final class ClipSearchPanelController: NSObject {
         let targetApp = lastActiveApp
         if row >= 0, row < folderClips.count {
             let clip = folderClips[row]
-            close(restoreFocus: false)
-            pasteToApp(targetApp, clip: clip)
+            let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
+            if AppEnvironment.current.pasteService.isDeleteOnlyAction(flags: capturedFlags) {
+                guard !clip.isInvalidated else { return }
+                AppEnvironment.current.clipService.delete(with: clip)
+                folderClips.remove(at: row)
+                if folderClips.isEmpty {
+                    folderPanel.orderOut(nil)
+                    activeList = .main
+                    loadClips()
+                    applyFilter(searchField.stringValue)
+                } else {
+                    let anchorMainRow = tableView.selectedRow
+                    loadClips()
+                    rebuildMainTable(query: searchField.stringValue, closeFolderPanel: false)
+                    // Refresh folderClips from the updated visibleClips for the same group
+                    if anchorMainRow >= 0, anchorMainRow < filteredRows.count,
+                       case let .folder(_, newRange) = filteredRows[anchorMainRow],
+                       newRange.upperBound <= visibleClips.count {
+                        suppressSelectionSideEffects = true
+                        tableView.selectRowIndexes(IndexSet(integer: anchorMainRow), byExtendingSelection: false)
+                        suppressSelectionSideEffects = false
+                        folderClips = Array(visibleClips[newRange])
+                    }
+                    folderTableView.reloadData()
+                    invalidateRowHeights(folderTableView)
+                    resizeFolderPanel(anchorRow: anchorMainRow)
+                    layoutTableDocumentView(folderTableView)
+                    let nextRow = min(row, folderClips.count - 1)
+                    if nextRow >= 0 {
+                        folderTableView.selectRowIndexes(IndexSet(integer: nextRow), byExtendingSelection: false)
+                    }
+                }
+            } else {
+                close(restoreFocus: false)
+                pasteToApp(targetApp, clip: clip)
+            }
         } else if row >= 0, row < folderSnippets.count {
             let snippet = folderSnippets[row]
             close(restoreFocus: false)
