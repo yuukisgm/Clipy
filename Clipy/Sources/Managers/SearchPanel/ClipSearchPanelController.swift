@@ -489,6 +489,7 @@ final class ClipSearchPanelController: NSObject {
     private var realm = try! Realm()
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
+    private var resignKeyObserver: Any?
     private var searchObserver: Any?
     // Continuously tracked so we always know where to paste even if frontmostApplication
     // returns nil at the moment the hotkey fires.
@@ -1165,11 +1166,21 @@ final class ClipSearchPanelController: NSObject {
             guard let self = self else { return event }
             return self.handleKeyDown(event)
         }
+        // Fallback: close when the panel loses key status (e.g. Dock click, system UI, or
+        // any case the global mouse monitor misses).
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            self?.close()
+        }
     }
 
     private func removeEventMonitors() {
         if let m = globalEventMonitor { NSEvent.removeMonitor(m); globalEventMonitor = nil }
         if let m = localEventMonitor { NSEvent.removeMonitor(m); localEventMonitor = nil }
+        if let o = resignKeyObserver { NotificationCenter.default.removeObserver(o); resignKeyObserver = nil }
     }
 
     private func installSearchObserver() {
