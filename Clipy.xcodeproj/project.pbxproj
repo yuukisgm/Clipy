@@ -180,6 +180,13 @@
 		FAC43E2A1B35DFDF00C06102 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		FAE911B81DE045E2008A4BEC /* HotKeyService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HotKeyService.swift; sourceTree = "<group>"; };
 		FDEF1236CB994ECF9590F0D9 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/CPYMenuPreferenceViewController.strings; sourceTree = "<group>"; };
+		278B3E19A1E348D0BDC8277A /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYBetaPreferenceViewController.strings; sourceTree = "<group>"; };
+		33B4BD8243224247BC066542 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYExcludeAppPreferenceViewController.strings; sourceTree = "<group>"; };
+		961376B19CA54B0D9E77AAC0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYGeneralPreferenceViewController.strings; sourceTree = "<group>"; };
+		04A7D4C1E33A4C69A0EA2B35 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYMenuPreferenceViewController.strings; sourceTree = "<group>"; };
+		0A61D9FEC1E1412EB6C4779F /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYShortcutsPreferenceViewController.strings; sourceTree = "<group>"; };
+		C6AAC7572C0E471E84FDA49B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYTypePreferenceViewController.strings; sourceTree = "<group>"; };
+		4A7DF9E2A1824B0894E22C25 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYPreferencesWindowController.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -784,6 +791,7 @@
 			children = (
 				314B299F1EC49BAF004DD070 /* Base */,
 				704C63A582D8412E84253349 /* ja */,
+				4A7DF9E2A1824B0894E22C25 /* en */,
 			);
 			name = CPYPreferencesWindowController.xib;
 			sourceTree = "<group>";
@@ -793,6 +801,7 @@
 			children = (
 				FAAA885C1E6853B80088FB34 /* Base */,
 				7F96014F5A76472A8A224B74 /* ja */,
+				278B3E19A1E348D0BDC8277A /* en */,
 			);
 			name = CPYBetaPreferenceViewController.xib;
 			sourceTree = "<group>";
@@ -802,6 +811,7 @@
 			children = (
 				FAAA886C1E685DC70088FB34 /* Base */,
 				04894A19C249402385E98164 /* ja */,
+				33B4BD8243224247BC066542 /* en */,
 			);
 			name = CPYExcludeAppPreferenceViewController.xib;
 			sourceTree = "<group>";
@@ -811,6 +821,7 @@
 			children = (
 				FAAA88721E685E270088FB34 /* Base */,
 				F75D9E1D1AAD4B8890D27A27 /* ja */,
+				961376B19CA54B0D9E77AAC0 /* en */,
 			);
 			name = CPYGeneralPreferenceViewController.xib;
 			sourceTree = "<group>";
@@ -820,6 +831,7 @@
 			children = (
 				FAAA88781E685F360088FB34 /* Base */,
 				FDEF1236CB994ECF9590F0D9 /* ja */,
+				04A7D4C1E33A4C69A0EA2B35 /* en */,
 			);
 			name = CPYMenuPreferenceViewController.xib;
 			sourceTree = "<group>";
@@ -829,6 +841,7 @@
 			children = (
 				FAAA887E1E6862370088FB34 /* Base */,
 				DA049AFE475C4E439E26FC7D /* ja */,
+				0A61D9FEC1E1412EB6C4779F /* en */,
 			);
 			name = CPYShortcutsPreferenceViewController.xib;
 			sourceTree = "<group>";
@@ -838,6 +851,7 @@
 			children = (
 				FAAA88841E68627D0088FB34 /* Base */,
 				168C8E5B13FA4F15B6BA83B5 /* ja */,
+				C6AAC7572C0E471E84FDA49B /* en */,
 			);
 			name = CPYTypePreferenceViewController.xib;
 			sourceTree = "<group>";
