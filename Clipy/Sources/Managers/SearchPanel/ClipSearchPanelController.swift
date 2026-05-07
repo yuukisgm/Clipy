@@ -1051,9 +1051,12 @@ final class ClipSearchPanelController: NSObject {
 
     private func pasteToApp(_ targetApp: NSRunningApplication?, clip: CPYClip) {
         guard !clip.isInvalidated else { return }
+        // Capture modifier flags synchronously here; NSApp.currentEvent becomes stale
+        // after the target app activates (activation event overwrites currentEvent).
+        let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
 
         guard let targetApp = targetApp else {
-            AppEnvironment.current.pasteService.paste(with: clip)
+            AppEnvironment.current.pasteService.paste(with: clip, capturedFlags: capturedFlags)
             return
         }
 
@@ -1064,7 +1067,7 @@ final class ClipSearchPanelController: NSObject {
             guard !fired else { return }
             fired = true
             if let t = token { NSWorkspace.shared.notificationCenter.removeObserver(t); token = nil }
-            AppEnvironment.current.pasteService.paste(with: clip)
+            AppEnvironment.current.pasteService.paste(with: clip, capturedFlags: capturedFlags)
         }
 
         token = NSWorkspace.shared.notificationCenter.addObserver(
@@ -1649,7 +1652,9 @@ extension ClipSearchPanelController: NSTableViewDataSource, NSTableViewDelegate 
         if tableView.identifier == Self.folderTableIdentifier {
             let title: String
             if row < folderClips.count {
-                title = menuDisplayTitle(folderClips[row].title)
+                let clip = folderClips[row]
+                let raw = clip.title.isEmpty && !clip.thumbnailPath.isEmpty ? "(画像)" : clip.title
+                title = menuDisplayTitle(raw)
             } else {
                 title = menuDisplayTitle(folderSnippets[row].title)
             }
@@ -1679,9 +1684,10 @@ extension ClipSearchPanelController: NSTableViewDataSource, NSTableViewDelegate 
             cell.toolTip = nil
             cell.textField?.toolTip = nil
         case let .clip(clip, listNumber):
-            let title = menuDisplayTitle(clip.title)
+            let rawTitle = clip.title.isEmpty && !clip.thumbnailPath.isEmpty ? "(画像)" : clip.title
+            let title = menuDisplayTitle(rawTitle)
             cell.plainTitle = title
-            cell.query = searchField.stringValue
+            cell.query = clip.title.isEmpty ? "" : searchField.stringValue
             cell.listNumber = listNumber
             cell.isGroupHeader = false
             cell.toolTip = nil

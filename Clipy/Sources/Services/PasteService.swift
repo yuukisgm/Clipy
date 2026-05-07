@@ -18,58 +18,48 @@ final class PasteService {
 
     // MARK: - Properties
     fileprivate let lock = NSRecursiveLock(name: "com.clipy-app.Clipy.Pastable")
-    fileprivate var isPastePlainText: Bool {
-        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pastePlainText) else { return false }
-
-        let modifierSetting = AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.pastePlainTextModifier)
-        return isPressedModifier(modifierSetting)
-    }
-    fileprivate var isDeleteHistory: Bool {
-        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.deleteHistory) else { return false }
-
-        let modifierSetting = AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.deleteHistoryModifier)
-        return isPressedModifier(modifierSetting)
-    }
-    fileprivate var isPasteAndDeleteHistory: Bool {
-        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pasteAndDeleteHistory) else { return false }
-
-        let modifierSetting = AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.pasteAndDeleteHistoryModifier)
-        return isPressedModifier(modifierSetting)
-    }
 
     // MARK: - Modifiers
-    private func isPressedModifier(_ flag: Int) -> Bool {
-        // Prefer the click event's own flags. Carbon HotKeys (used to popup the
-        // menu) do not always deliver matching flagsChanged events to AppKit, so
-        // `NSEvent.modifierFlags` can stay stale until a real key event arrives.
-        // Reading from NSApp.currentEvent (the click) avoids that lag.
-        let eventFlags = NSApp.currentEvent?.modifierFlags
-        let flags = eventFlags ?? NSEvent.modifierFlags
-        if flag == 0 && flags.contains(.command) {
-            return true
-        } else if flag == 1 && flags.contains(.shift) {
-            return true
-        } else if flag == 2 && flags.contains(.control) {
-            return true
-        } else if flag == 3 && flags.contains(.option) {
-            return true
+    private func isPressedModifier(_ flag: Int, flags: NSEvent.ModifierFlags) -> Bool {
+        switch flag {
+        case 0: return flags.contains(.command)
+        case 1: return flags.contains(.shift)
+        case 2: return flags.contains(.control)
+        case 3: return flags.contains(.option)
+        default: return false
         }
-        return false
+    }
+
+    private func isPastePlainText(flags: NSEvent.ModifierFlags) -> Bool {
+        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pastePlainText) else { return false }
+        return isPressedModifier(AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.pastePlainTextModifier), flags: flags)
+    }
+
+    private func isDeleteHistory(flags: NSEvent.ModifierFlags) -> Bool {
+        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.deleteHistory) else { return false }
+        return isPressedModifier(AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.deleteHistoryModifier), flags: flags)
+    }
+
+    private func isPasteAndDeleteHistory(flags: NSEvent.ModifierFlags) -> Bool {
+        guard AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pasteAndDeleteHistory) else { return false }
+        return isPressedModifier(AppEnvironment.current.defaults.integer(forKey: Preferences.Beta.pasteAndDeleteHistoryModifier), flags: flags)
     }
 }
 
 // MARK: - Copy
 extension PasteService {
-    func paste(with clip: CPYClip) {
+    func paste(with clip: CPYClip, capturedFlags: NSEvent.ModifierFlags? = nil) {
         guard !clip.isInvalidated else { return }
 
         do {
             let clipData = try decodeClipData(from: clip)
+            // Use caller-captured flags when available (async paste fires with stale currentEvent).
+            let flags = capturedFlags ?? NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
 
             // Handling modifier actions
-            let isPastePlainText = self.isPastePlainText
-            let isPasteAndDeleteHistory = self.isPasteAndDeleteHistory
-            let isDeleteHistory = self.isDeleteHistory
+            let isPastePlainText = self.isPastePlainText(flags: flags)
+            let isPasteAndDeleteHistory = self.isPasteAndDeleteHistory(flags: flags)
+            let isDeleteHistory = self.isDeleteHistory(flags: flags)
             guard isPastePlainText || isPasteAndDeleteHistory || isDeleteHistory else {
                 copyToPasteboard(with: clipData)
                 paste()
