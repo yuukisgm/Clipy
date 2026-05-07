@@ -375,13 +375,7 @@ private extension MenuManager {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "メニューバーアイコンを非表示にしました"
-            let bundleID = Bundle.main.bundleIdentifier ?? "com.yuuki.clipy"
-            alert.informativeText = """
-            この設定では Clipy の設定画面を画面上から開く手段がなくなります。
-            再表示するには、ターミナルで次のコマンドを実行してください：
-
-            defaults write \(bundleID) kCPYPrefStatusTypeItemKey -int 1; killall Clipy 2>/dev/null; open /Applications/Clipy.app
-            """
+            alert.informativeText = "アイコンを再表示するには、Finder の「アプリケーション」フォルダから Clipy.app を開き直してください。"
             alert.showsSuppressionButton = true
             alert.suppressionButton?.title = "今後表示しない"
             alert.addButton(withTitle: "OK")
