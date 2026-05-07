@@ -861,6 +861,14 @@ final class ClipSearchPanelController: NSObject {
         title.replace(pattern: "\\s+", withTemplate: " ").trim
     }
 
+    private func clipListTitle(_ clip: CPYClip) -> String {
+        if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
+        if let url = URL(string: clip.title), url.scheme == "file" {
+            return url.lastPathComponent
+        }
+        return clip.title
+    }
+
     private func resizePanel() {
         let maxHeight = maxMenuHeight(for: panel)
         let rowCount = min(filteredRows.count, maxMainRowCount(for: maxHeight))
@@ -1661,8 +1669,7 @@ extension ClipSearchPanelController: NSTableViewDataSource, NSTableViewDelegate 
             let title: String
             if row < folderClips.count {
                 let clip = folderClips[row]
-                let raw = clip.title.isEmpty && !clip.thumbnailPath.isEmpty ? "(画像)" : clip.title
-                title = menuDisplayTitle(raw)
+                title = menuDisplayTitle(clipListTitle(clip))
             } else {
                 title = menuDisplayTitle(folderSnippets[row].title)
             }
@@ -1692,8 +1699,7 @@ extension ClipSearchPanelController: NSTableViewDataSource, NSTableViewDelegate 
             cell.toolTip = nil
             cell.textField?.toolTip = nil
         case let .clip(clip, listNumber):
-            let rawTitle = clip.title.isEmpty && !clip.thumbnailPath.isEmpty ? "(画像)" : clip.title
-            let title = menuDisplayTitle(rawTitle)
+            let title = menuDisplayTitle(clipListTitle(clip))
             cell.plainTitle = title
             cell.query = clip.title.isEmpty ? "" : searchField.stringValue
             cell.listNumber = listNumber
