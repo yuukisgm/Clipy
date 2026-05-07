@@ -1371,7 +1371,9 @@ final class ClipSearchPanelController: NSObject {
     private func tooltipTitle(for tableView: NSTableView, row: Int) -> String? {
         if tableView.identifier == Self.folderTableIdentifier {
             if row >= 0, row < folderClips.count {
-                return tooltipDisplayTitle(folderClips[row].title)
+                let c = folderClips[row]
+                if c.title.isEmpty && !c.thumbnailPath.isEmpty { return "(画像)" }
+                return tooltipDisplayTitle(c.title)
             }
             guard row >= 0, row < folderSnippets.count else { return nil }
             return tooltipDisplayTitle(folderSnippets[row].content)
@@ -1380,6 +1382,7 @@ final class ClipSearchPanelController: NSObject {
         guard row >= 0, row < filteredRows.count else { return nil }
         switch filteredRows[row] {
         case let .clip(clip, _):
+            if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
             return tooltipDisplayTitle(clip.title)
         case let .snippet(snippet, _):
             return tooltipDisplayTitle(snippet.content)
@@ -1418,18 +1421,23 @@ final class ClipSearchPanelController: NSObject {
         prepareTooltipAnchor(in: tableView, row: row)
 
         if hasImage, let thumbnailPath = clip?.thumbnailPath {
+            if let cached = PINCache.shared.memoryCache.object(forKey: thumbnailPath) as? NSImage {
+                tooltipImageView.image = cached
+                let maxDim: CGFloat = 200
+                let natural = cached.size
+                let scale = min(maxDim / natural.width, maxDim / natural.height, 1.0)
+                let displayW = max(ceil(natural.width * scale), 40)
+                let displayH = max(ceil(natural.height * scale), 40)
+                tooltipImageWidthConstraint?.constant = displayW
+                tooltipImageHeightConstraint?.constant = displayH
+                positionAndShowTooltip(tableView: tableView, row: row,
+                                       size: NSSize(width: displayW + 16, height: displayH + 8))
+                return
+            }
+            // Not in memory cache yet — kick off async load and fall through to text fallback.
+            // Next hover will show the image once cached.
             loadTooltipImage(thumbnailPath: thumbnailPath)
-            let cached = PINCache.shared.memoryCache.object(forKey: thumbnailPath) as? NSImage
-            let natural = cached?.size ?? NSSize(width: 80, height: 80)
-            let maxDim: CGFloat = 200
-            let scale = min(maxDim / natural.width, maxDim / natural.height, 1.0)
-            let displayW = max(ceil(natural.width * scale), 40)
-            let displayH = max(ceil(natural.height * scale), 40)
-            tooltipImageWidthConstraint?.constant = displayW
-            tooltipImageHeightConstraint?.constant = displayH
-            positionAndShowTooltip(tableView: tableView, row: row,
-                                   size: NSSize(width: displayW + 16, height: displayH + 8))
-            return
+            tooltipImageView.isHidden = true
         }
 
         if isColor, let title = clip?.title,
