@@ -18,10 +18,10 @@ import RealmSwift
 final class HotKeyService: NSObject {
     // MARK: - Properties
     static var defaultKeyCombos: [String: Any] = {
-        // HistoryMenu:  ⌘ + Shift + V
-        // SnipeetMenu:  ⌘ + Shift + B
-        return [Constants.Menu.history: ["keyCode": 9, "modifiers": 768],
-                Constants.Menu.snippet: ["keyCode": 11, "modifiers": 768]]
+        // HistoryMenu:  ⌘ double-tap
+        // SnippetMenu:  ⇧ double-tap
+        return [Constants.Menu.history: ["doubled": true, "modifiers": 256],
+                Constants.Menu.snippet: ["doubled": true, "modifiers": 512]]
     }()
 
     fileprivate(set) var historyKeyCombo: KeyCombo?
@@ -121,17 +121,31 @@ private extension HotKeyService {
         guard let keyCombos = AppEnvironment.current.defaults.object(forKey: Constants.UserDefaults.hotKeys) as? [String: Any] else { return }
 
         // History menu
-        if let (keyCode, modifiers) = parse(with: keyCombos, forKey: Constants.Menu.history) {
+        if let modifiers = parseDoubled(with: keyCombos, forKey: Constants.Menu.history) {
+            if let keyCombo = KeyCombo(doubledCarbonModifiers: modifiers) {
+                AppEnvironment.current.defaults.set(keyCombo.archive(), forKey: Constants.HotKey.historyKeyCombo)
+            }
+        } else if let (keyCode, modifiers) = parse(with: keyCombos, forKey: Constants.Menu.history) {
             if let keyCombo = KeyCombo(QWERTYKeyCode: keyCode, carbonModifiers: modifiers) {
                 AppEnvironment.current.defaults.set(keyCombo.archive(), forKey: Constants.HotKey.historyKeyCombo)
             }
         }
         // Snippet menu
-        if let (keyCode, modifiers) = parse(with: keyCombos, forKey: Constants.Menu.snippet) {
+        if let modifiers = parseDoubled(with: keyCombos, forKey: Constants.Menu.snippet) {
+            if let keyCombo = KeyCombo(doubledCarbonModifiers: modifiers) {
+                AppEnvironment.current.defaults.set(keyCombo.archive(), forKey: Constants.HotKey.snippetKeyCombo)
+            }
+        } else if let (keyCode, modifiers) = parse(with: keyCombos, forKey: Constants.Menu.snippet) {
             if let keyCombo = KeyCombo(QWERTYKeyCode: keyCode, carbonModifiers: modifiers) {
                 AppEnvironment.current.defaults.set(keyCombo.archive(), forKey: Constants.HotKey.snippetKeyCombo)
             }
         }
+    }
+
+    func parseDoubled(with keyCombos: [String: Any], forKey key: String) -> Int? {
+        guard let combos = keyCombos[key] as? [String: Any] else { return nil }
+        guard let doubled = combos["doubled"] as? Bool, doubled else { return nil }
+        return combos["modifiers"] as? Int
     }
 
     func parse(with keyCombos: [String: Any], forKey key: String) -> (Int, Int)? {

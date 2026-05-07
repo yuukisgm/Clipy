@@ -21,7 +21,7 @@ final class CPYUtilities {
         /* General */
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.General.loginItem)
         defaultValues.updateValue(NSNumber(value: false), forKey: Constants.UserDefaults.suppressAlertForLoginItem)
-        defaultValues.updateValue(NSNumber(value: 25), forKey: Preferences.General.maxShowHistorySize)
+        defaultValues.updateValue(NSNumber(value: 100), forKey: Preferences.General.maxShowHistorySize)
         defaultValues.updateValue(NSNumber(value: 100), forKey: Preferences.General.maxHistorySize)
         // 1 == StatusType.black (matches the menu item tag in CPYGeneralPreferenceViewController.xib).
         defaultValues.updateValue(NSNumber(value: 1), forKey: Preferences.General.statusTypeItem)
@@ -32,7 +32,7 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: 14), forKey: Preferences.General.menuFontSize)
 
         /* Menu */
-        defaultValues.updateValue(NSNumber(value: 10), forKey: Preferences.Menu.numberOfItemsPlaceInline)
+        defaultValues.updateValue(NSNumber(value: 15), forKey: Preferences.Menu.numberOfItemsPlaceInline)
         defaultValues.updateValue(NSNumber(value: 15), forKey: Preferences.Menu.numberOfItemsPlaceInsideFolder)
 
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.showIconInTheMenu)
@@ -57,10 +57,10 @@ final class CPYUtilities {
         /* Beta */
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Beta.pastePlainText)
         defaultValues.updateValue(NSNumber(value: 0), forKey: Preferences.Beta.pastePlainTextModifier)
-        defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.deleteHistory)
-        defaultValues.updateValue(NSNumber(value: 0), forKey: Preferences.Beta.deleteHistoryModifier)
+        defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Beta.deleteHistory)
+        defaultValues.updateValue(NSNumber(value: 3), forKey: Preferences.Beta.deleteHistoryModifier)
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.pasteAndDeleteHistory)
-        defaultValues.updateValue(NSNumber(value: 0), forKey: Preferences.Beta.pasteAndDeleteHistoryModifier)
+        defaultValues.updateValue(NSNumber(value: 1), forKey: Preferences.Beta.pasteAndDeleteHistoryModifier)
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.observerScreenshot)
 
         AppEnvironment.current.defaults.register(defaults: defaultValues)
