@@ -1379,9 +1379,9 @@ final class ClipSearchPanelController: NSObject {
     private func tooltipTitle(for tableView: NSTableView, row: Int) -> String? {
         if tableView.identifier == Self.folderTableIdentifier {
             if row >= 0, row < folderClips.count {
-                let c = folderClips[row]
-                if c.title.isEmpty && !c.thumbnailPath.isEmpty { return "(画像)" }
-                return tooltipDisplayTitle(c.title)
+                let clip = folderClips[row]
+                if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
+                return tooltipDisplayTitle(clipListTitle(clip))
             }
             guard row >= 0, row < folderSnippets.count else { return nil }
             return tooltipDisplayTitle(folderSnippets[row].content)
@@ -1391,7 +1391,7 @@ final class ClipSearchPanelController: NSObject {
         switch filteredRows[row] {
         case let .clip(clip, _):
             if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return "(画像)" }
-            return tooltipDisplayTitle(clip.title)
+            return tooltipDisplayTitle(clipListTitle(clip))
         case let .snippet(snippet, _):
             return tooltipDisplayTitle(snippet.content)
         default:
