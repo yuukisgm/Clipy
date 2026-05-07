@@ -1418,7 +1418,9 @@ final class ClipSearchPanelController: NSObject {
         let defaults = AppEnvironment.current.defaults
         let isColor = clip?.isColorCode == true &&
                       defaults.bool(forKey: Preferences.Menu.showColorPreviewInTheMenu)
-        let hasImage = clip?.isColorCode == false &&
+        let isFileURL = clip?.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue
+        let hasImage = !isFileURL &&
+                       clip?.isColorCode == false &&
                        clip?.thumbnailPath.isNotEmpty == true &&
                        defaults.bool(forKey: Preferences.Menu.showImageInTheMenu)
 
