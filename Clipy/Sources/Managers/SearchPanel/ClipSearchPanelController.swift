@@ -125,6 +125,17 @@ private final class MenuSeparatorView: NSView {
 private final class MenuTableView: NSTableView {
     private var hoverTrackingArea: NSTrackingArea?
     var hoverSelectionHandler: ((MenuTableView) -> Void)?
+    // 直前にホバーした行を覚え、同じ行への mouseMoved は完全スキップする。
+    // mouseMoved は秒 60 回飛んでくるが、ツールチップ更新が要るのは「行をまたいだ時だけ」。
+    private var lastHoverRow: Int = -1
+    // 行をまたいだ後、マウスが止まって dwell ミリ秒経ったら handler を呼ぶ（ツールチップ表示）。
+    // スクロール中・速い移動中はキャンセルされ続けるので、ツールチップ表示が走らない。
+    private var hoverDwellWorkItem: DispatchWorkItem?
+    private static let hoverDwellMillis: Int = 1500
+    // ホバー由来の selectRowIndexes か矢印キー由来かを区別するフラグ。
+    // selectionDidChange 通知は同期発火なので、selectRowIndexes 前後で短時間 true にすれば良い。
+    // controller 側の tableViewSelectionDidChange でこのフラグを読み、ホバー時はツールチップを抑制する。
+    private(set) var isSelectionFromHover: Bool = false
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -151,9 +162,37 @@ private final class MenuTableView: NSTableView {
     override func mouseMoved(with event: NSEvent) {
         let row = row(at: convert(event.locationInWindow, from: nil))
         guard row >= 0, row < numberOfRows else { return }
+        if row == lastHoverRow { return }
+        lastHoverRow = row
+        // 青枠ハイライトはユーザー反応性のため即時。selectionDidChange は同期発火するので、
+        // フラグを true にしてから selectRowIndexes、戻り次第 false に戻す。
+        // controller 側の tableViewSelectionDidChange はこのフラグを見てホバー由来ならツールチップ表示をスキップする。
+        isSelectionFromHover = true
         selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-        scrollRowToVisible(row)
-        hoverSelectionHandler?(self)
+        isSelectionFromHover = false
+        // dwell: マウスが止まったまま 250ms 経過したら handler を呼んでツールチップ表示。
+        // スクロール・速い移動ではキャンセルされ続けるので発火しない。
+        hoverDwellWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.hoverSelectionHandler?(self)
+        }
+        hoverDwellWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.hoverDwellMillis), execute: work)
+    }
+
+    override func reloadData() {
+        // 行構成が変わったら直前ホバー行は無効。次の mouseMoved で必ず handler が走るようリセット。
+        lastHoverRow = -1
+        hoverDwellWorkItem?.cancel()
+        hoverDwellWorkItem = nil
+        super.reloadData()
+    }
+
+    func cancelHoverDwell() {
+        lastHoverRow = -1
+        hoverDwellWorkItem?.cancel()
+        hoverDwellWorkItem = nil
     }
 }
 
@@ -341,8 +380,11 @@ final class ClipSearchPanelController: NSObject {
         t.action = #selector(tableViewClicked)
         t.doubleAction = #selector(tableViewDoubleClicked)
         t.hoverSelectionHandler = { [weak self] tableView in
+            // フォルダ展開は tableViewSelectionDidChange 経路で既に済んでいる。dwell 後にやるのは
+            // ツールチップ表示だけ。folder 行のときは showSelectionTooltip 内で title=nil 判定により
+            // hideSelectionTooltip に分岐するので問題ない。
             self?.suppressInitialTooltip = false
-            self?.showFolderIfNeeded(at: tableView.selectedRow)
+            self?.showSelectionTooltip(for: tableView)
         }
         return t
     }()
@@ -531,6 +573,15 @@ final class ClipSearchPanelController: NSObject {
     private var resignKeyObserver: Any?
     private var searchObserver: Any?
     private var searchDebounceWorkItem: DispatchWorkItem?
+    // 直前検索の結果を superset として再利用するためのキャッシュ。
+    // クエリが前回の延長 (hasPrefix) なら全件 allClips でなく前回絞り込み済みから走査して O(n) を縮める。
+    // 早期打ち切り (limit 到達) で truncate された場合は nil にして無効化する。
+    private var lastSearchQuery: String = ""
+    private var lastSearchFullMatches: [CPYClip]? = nil
+    // 矢印キー / 番号キー連打時のツールチップを debounce する。連打中はキャンセルされ続けるので、
+    // 止まってから 1 回だけ表示が走る。連打中の重い tooltip 描画を抑える狙い。
+    private var keyboardTooltipWorkItem: DispatchWorkItem?
+    private static let keyboardTooltipDwellMillis: Int = 1500
     // Continuously tracked so we always know where to paste even if frontmostApplication
     // returns nil at the moment the hotkey fires.
     private var lastActiveApp: NSRunningApplication?
@@ -711,6 +762,11 @@ final class ClipSearchPanelController: NSObject {
     func close(restoreFocus: Bool = true) {
         removeEventMonitors()
         removeSearchObserver()
+        // 予約中の dwell タイマーを全部キャンセル。閉じた後に発火して tooltip が再表示される事故を防ぐ。
+        keyboardTooltipWorkItem?.cancel()
+        keyboardTooltipWorkItem = nil
+        (tableView as? MenuTableView)?.cancelHoverDwell()
+        (folderTableView as? MenuTableView)?.cancelHoverDwell()
         hideSelectionTooltip()
         folderPanel.orderOut(nil)
         panel.orderOut(nil)
@@ -720,7 +776,13 @@ final class ClipSearchPanelController: NSObject {
         }
     }
 
+    private var lastAppliedPanelMode: PanelMode? = nil
+
     private func applyPanelModeLayout() {
+        // panelMode が前回と同じなら制約再設定 + layoutSubtreeIfNeeded を回さない。
+        // history → history の連続 show で毎回走らせるのは無駄。
+        if lastAppliedPanelMode == panelMode { return }
+        lastAppliedPanelMode = panelMode
         let isHistory = panelMode == .history
         searchField.isHidden = !isHistory
         separatorLine.isHidden = !isHistory
@@ -749,6 +811,9 @@ final class ClipSearchPanelController: NSObject {
             .sorted(byKeyPath: #keyPath(CPYClip.updateTime), ascending: ascending)
         let limit = maxHistory > 0 ? min(maxHistory, results.count) : results.count
         allClips = Array(results[0..<limit])
+        // allClips が更新されたので superset キャッシュは古い参照を抱えている。無効化する。
+        lastSearchQuery = ""
+        lastSearchFullMatches = nil
     }
 
     private func applyFilter(_ query: String) {
@@ -758,11 +823,39 @@ final class ClipSearchPanelController: NSObject {
     private func rebuildMainTable(query: String, closeFolderPanel: Bool) {
         let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
         let limit = maxShowHistory > 0 ? maxShowHistory : allClips.count
-        let matches = query.isEmpty ? allClips : allClips.filter {
-            $0.title.localizedStandardContains(query) ||
-            clipListTitle($0).localizedStandardContains(query)
+        let clips: [CPYClip]
+        if query.isEmpty {
+            clips = Array(allClips.prefix(limit))
+            lastSearchQuery = ""
+            lastSearchFullMatches = nil
+        } else {
+            // superset 再利用: 直前クエリの延長なら前回絞り込み済み配列をベースに走査する。
+            let baseClips: [CPYClip]
+            if !lastSearchQuery.isEmpty,
+               query.hasPrefix(lastSearchQuery),
+               let cached = lastSearchFullMatches {
+                baseClips = cached
+            } else {
+                baseClips = allClips
+            }
+            // limit 件埋まったら走査打ち切り。打ち切った場合は完全結果が手に入らないので superset キャッシュ無効化。
+            var matched: [CPYClip] = []
+            matched.reserveCapacity(limit)
+            var truncated = false
+            for clip in baseClips {
+                if clip.title.localizedStandardContains(query) ||
+                   clipListTitle(clip).localizedStandardContains(query) {
+                    matched.append(clip)
+                    if matched.count >= limit {
+                        truncated = true
+                        break
+                    }
+                }
+            }
+            clips = matched
+            lastSearchQuery = query
+            lastSearchFullMatches = truncated ? nil : matched
         }
-        let clips = Array(matches.prefix(limit))
         visibleClips = clips
         if closeFolderPanel {
             folderPanel.orderOut(nil)
@@ -879,15 +972,19 @@ final class ClipSearchPanelController: NSObject {
         NSSize(width: 0, height: 0)
     }
 
+    private var lastAppliedRowHeight: CGFloat = -1
+
     private func updateTableMetrics() {
+        // フォントサイズ等のユーザー設定が変わっていない時は再代入をスキップ。
+        // show() のたびに走らせていたが、rowHeight 不変ならコストの無駄。
         let rowHeight = menuRowHeight()
+        if rowHeight == lastAppliedRowHeight { return }
+        lastAppliedRowHeight = rowHeight
         let spacing = menuIntercellSpacing()
         tableView.rowHeight = rowHeight
         tableView.intercellSpacing = spacing
         folderTableView.rowHeight = rowHeight
         folderTableView.intercellSpacing = spacing
-        invalidateRowHeights(tableView)
-        invalidateRowHeights(folderTableView)
     }
 
     private func integerPreference(_ key: String, fallback: Int) -> Int {
@@ -1288,7 +1385,7 @@ final class ClipSearchPanelController: NSObject {
         tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         tableView.scrollRowToVisible(row)
         if showTooltip {
-            showSelectionTooltip(for: tableView)
+            scheduleKeyboardTooltip(for: tableView)
         }
     }
 
@@ -1305,7 +1402,17 @@ final class ClipSearchPanelController: NSObject {
     private func selectFolder(row: Int) {
         folderTableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         folderTableView.scrollRowToVisible(row)
-        showSelectionTooltip(for: folderTableView)
+        scheduleKeyboardTooltip(for: folderTableView)
+    }
+
+    private func scheduleKeyboardTooltip(for tableView: NSTableView) {
+        keyboardTooltipWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self, weak tableView] in
+            guard let self, let tableView else { return }
+            self.showSelectionTooltip(for: tableView)
+        }
+        keyboardTooltipWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.keyboardTooltipDwellMillis), execute: work)
     }
 
     private func nextFolderRow(from row: Int) -> Int? {
@@ -1336,6 +1443,8 @@ final class ClipSearchPanelController: NSObject {
                 activeList = .main
                 folderPanel.orderOut(nil)
                 hideSelectionTooltip()
+                // 戻った先 (main) の選択行ツールチップを dwell 経由で予約。即時表示は避ける。
+                scheduleKeyboardTooltip(for: tableView)
                 return nil
             }
             if activeList == .main, folderPanelSide == .left {
@@ -1348,6 +1457,7 @@ final class ClipSearchPanelController: NSObject {
                 activeList = .main
                 folderPanel.orderOut(nil)
                 hideSelectionTooltip()
+                scheduleKeyboardTooltip(for: tableView)
                 return nil
             }
             if activeList == .main, folderPanelSide == .right {
@@ -1365,7 +1475,9 @@ final class ClipSearchPanelController: NSObject {
             guard let next = nextSelectableRow(from: tableView.selectedRow) else { return nil }
             activeList = .main
             select(row: next)
-            showFolderIfNeeded(at: next)
+            // showFolderIfNeeded は select() 内の selectRowIndexes が tableViewSelectionDidChange を
+            // 同期発火するので既に実行済み。ここで再度 default(showTooltip:true) で呼ぶと keyboard
+            // dwell をバイパスしてツールチップが即時表示されるため呼び出さない。
             return nil
         case 126: // Up arrow — pass through while IME candidate list is active
             if hasMarkedText() { return event }
@@ -1378,7 +1490,7 @@ final class ClipSearchPanelController: NSObject {
             guard let prev = previousSelectableRow(from: tableView.selectedRow) else { return nil }
             activeList = .main
             select(row: prev)
-            showFolderIfNeeded(at: prev)
+            // 同上。selectionDidChange 経路でフォルダ展開は済むので showFolderIfNeeded は呼ばない。
             return nil
         default:
             // Number key quick-select: only when search is empty and IME is idle
@@ -1399,7 +1511,7 @@ final class ClipSearchPanelController: NSObject {
         }
     }
 
-    private func showFolderIfNeeded(at row: Int) {
+    private func showFolderIfNeeded(at row: Int, showTooltip: Bool = true) {
         guard row >= 0, row < filteredRows.count else { return }
         switch filteredRows[row] {
         case let .folder(_, range):
@@ -1411,7 +1523,9 @@ final class ClipSearchPanelController: NSObject {
         default:
             folderPanel.orderOut(nil)
             activeList = .main
-            showSelectionTooltip(for: tableView)
+            if showTooltip {
+                showSelectionTooltip(for: tableView)
+            }
         }
     }
 
@@ -1421,9 +1535,12 @@ final class ClipSearchPanelController: NSObject {
         switch filteredRows[tableView.selectedRow] {
         case let .folder(_, range):
             showFolder(range, from: tableView.selectedRow, activate: true)
+            // フォルダ進入直後の最初の項目のツールチップを dwell 経由で予約。
+            scheduleKeyboardTooltip(for: folderTableView)
             return true
         case let .snippetFolder(_, snippets):
             showSnippetFolder(snippets, from: tableView.selectedRow, activate: true)
+            scheduleKeyboardTooltip(for: folderTableView)
             return true
         default:
             return false
@@ -1514,6 +1631,11 @@ final class ClipSearchPanelController: NSObject {
 
     private func showSelectionTooltip(for tableView: NSTableView) {
         let row = tableView.selectedRow
+        // 検索パネル本体が閉じている時は出さない。dwell タイマーのキャンセル漏れに対する保険。
+        guard panel.isVisible else {
+            hideSelectionTooltip()
+            return
+        }
         if suppressInitialTooltip {
             hideSelectionTooltip()
             return
@@ -1633,6 +1755,12 @@ final class ClipSearchPanelController: NSObject {
 
     private func prepareTooltipAnchor(in tableView: NSTableView, row: Int) {
         guard row >= 0, row < tableView.numberOfRows else { return }
+        // 対象行が既に可視範囲なら scrollRowToVisible は不要。ホバー経路では常に可視で、
+        // ここをスキップすると layoutSubtreeIfNeeded × 5 連発も避けられる（行位置が動かないので再計算不要）。
+        let rowRect = tableView.rect(ofRow: row)
+        let visibleRect = tableView.visibleRect
+        let isFullyVisible = visibleRect.minY <= rowRect.minY && rowRect.maxY <= visibleRect.maxY
+        if isFullyVisible { return }
         tableView.scrollRowToVisible(row)
         tableView.enclosingScrollView?.superview?.layoutSubtreeIfNeeded()
         tableView.enclosingScrollView?.layoutSubtreeIfNeeded()
@@ -1835,10 +1963,12 @@ extension ClipSearchPanelController: NSTableViewDataSource, NSTableViewDelegate 
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !suppressSelectionSideEffects else { return }
         guard let changedTableView = notification.object as? NSTableView else { return }
+        // ツールチップ表示はこの経路では一切行わない（即発火を避けるため）。表示は呼び出し側に集約:
+        //   ・矢印キー / 番号キー / 初期化  → select(row:) → scheduleKeyboardTooltip
+        //   ・ホバー                        → MenuTableView.mouseMoved → dwell タイマー → hoverSelectionHandler
+        //   ・クリック                      → mouseDown → 即 sendAction、ツールチップ不要
         if changedTableView.identifier == Self.mainTableIdentifier {
-            showFolderIfNeeded(at: changedTableView.selectedRow)
-        } else if changedTableView.identifier == Self.folderTableIdentifier {
-            showSelectionTooltip(for: changedTableView)
+            showFolderIfNeeded(at: changedTableView.selectedRow, showTooltip: false)
         }
     }
 
