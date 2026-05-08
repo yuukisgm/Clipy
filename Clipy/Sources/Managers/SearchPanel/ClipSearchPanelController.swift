@@ -125,6 +125,12 @@ private final class MenuSeparatorView: NSView {
 private final class MenuTableView: NSTableView {
     private var hoverTrackingArea: NSTrackingArea?
     var hoverSelectionHandler: ((MenuTableView) -> Void)?
+    // mouseMoved で行をまたいだ瞬間に同期で呼ばれる通知。
+    // controller 側で「他テーブルのキーボード予約 (keyboardTooltipWorkItem)」をキャンセルする等、
+    // ホバー操作に切り替わった瞬間に他経路の予約を即時無効化するために使う。
+    var onHoverImmediate: ((MenuTableView) -> Void)?
+    // mouseExited で同期発火。ホバー対象（テーブル）から離れた瞬間にツールチップを即消すために使う。
+    var onMouseExited: ((MenuTableView) -> Void)?
     // 直前にホバーした行を覚え、同じ行への mouseMoved は完全スキップする。
     // mouseMoved は秒 60 回飛んでくるが、ツールチップ更新が要るのは「行をまたいだ時だけ」。
     private var lastHoverRow: Int = -1
@@ -144,9 +150,17 @@ private final class MenuTableView: NSTableView {
         if let hoverTrackingArea = hoverTrackingArea {
             removeTrackingArea(hoverTrackingArea)
         }
-        let options: NSTrackingArea.Options = [.activeAlways, .inVisibleRect, .mouseMoved]
+        // mouseExited も拾って、マウスがテーブルを離れた瞬間に hover dwell を取り消す。
+        // folder パネルからメインに戻る等、外部から panel を閉じる前にマウスが離れる
+        // 経路で「ぴょこっとツールチップ」が出るのを防ぐ。
+        let options: NSTrackingArea.Options = [.activeAlways, .inVisibleRect, .mouseMoved, .mouseEnteredAndExited]
         hoverTrackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
         addTrackingArea(hoverTrackingArea!)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        cancelHoverDwell()
+        onMouseExited?(self)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -164,6 +178,8 @@ private final class MenuTableView: NSTableView {
         guard row >= 0, row < numberOfRows else { return }
         if row == lastHoverRow { return }
         lastHoverRow = row
+        // ホバーに切り替わった瞬間 — controller 側で他テーブルや keyboard 経路の予約をキャンセル。
+        onHoverImmediate?(self)
         // 青枠ハイライトはユーザー反応性のため即時。selectionDidChange は同期発火するので、
         // フラグを true にしてから selectRowIndexes、戻り次第 false に戻す。
         // controller 側の tableViewSelectionDidChange はこのフラグを見てホバー由来ならツールチップ表示をスキップする。
@@ -386,6 +402,18 @@ final class ClipSearchPanelController: NSObject {
             self?.suppressInitialTooltip = false
             self?.showSelectionTooltip(for: tableView)
         }
+        t.onHoverImmediate = { [weak self] _ in
+            // main にホバーが移った瞬間 — 全 tooltip 経路 (keyboard 予約 / folder hover dwell /
+            // 表示中の tooltip) を即時クリア。フォーカス変化即消しの原則。
+            self?.keyboardTooltipWorkItem?.cancel()
+            self?.keyboardTooltipWorkItem = nil
+            (self?.folderTableView as? MenuTableView)?.cancelHoverDwell()
+            self?.hideSelectionTooltip()
+        }
+        t.onMouseExited = { [weak self] _ in
+            // main テーブルからマウスが離れた瞬間も即消し。
+            self?.hideSelectionTooltip()
+        }
         return t
     }()
 
@@ -527,6 +555,16 @@ final class ClipSearchPanelController: NSObject {
         t.hoverSelectionHandler = { [weak self] tableView in
             self?.suppressInitialTooltip = false
             self?.showSelectionTooltip(for: tableView)
+        }
+        t.onHoverImmediate = { [weak self] _ in
+            // folder にホバーが移った瞬間も同様に全クリア。
+            self?.keyboardTooltipWorkItem?.cancel()
+            self?.keyboardTooltipWorkItem = nil
+            (self?.tableView as? MenuTableView)?.cancelHoverDwell()
+            self?.hideSelectionTooltip()
+        }
+        t.onMouseExited = { [weak self] _ in
+            self?.hideSelectionTooltip()
         }
         return t
     }()
@@ -821,6 +859,8 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func rebuildMainTable(query: String, closeFolderPanel: Bool) {
+        // 検索打鍵やデータ更新で行構成が変わるなら、現在表示中の tooltip も全予約も即無効。
+        flushTooltipForFocusChange()
         let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
         let limit = maxShowHistory > 0 ? maxShowHistory : allClips.count
         let clips: [CPYClip]
@@ -890,6 +930,7 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func loadSnippetRows() {
+        flushTooltipForFocusChange()
         realm.refresh()
         let folders = realm.objects(CPYFolder.self).sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
         filteredRows = folders
@@ -920,6 +961,7 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func showSnippetFolder(_ snippets: [CPYSnippet], from row: Int, activate: Bool = false) {
+        flushTooltipForFocusChange()
         folderClips = []
         folderSnippets = snippets
         showFolderPanel(from: row, activate: activate)
@@ -1382,6 +1424,8 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func select(row: Int, showTooltip: Bool = true) {
+        // showTooltip フラグに関係なく、選択が動くなら旧 tooltip は無効。先に flush する。
+        flushTooltipForFocusChange()
         tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         tableView.scrollRowToVisible(row)
         if showTooltip {
@@ -1400,19 +1444,31 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func selectFolder(row: Int) {
+        flushTooltipForFocusChange()
         folderTableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         folderTableView.scrollRowToVisible(row)
         scheduleKeyboardTooltip(for: folderTableView)
     }
 
     private func scheduleKeyboardTooltip(for tableView: NSTableView) {
-        keyboardTooltipWorkItem?.cancel()
+        flushTooltipForFocusChange()
         let work = DispatchWorkItem { [weak self, weak tableView] in
             guard let self, let tableView else { return }
             self.showSelectionTooltip(for: tableView)
         }
         keyboardTooltipWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.keyboardTooltipDwellMillis), execute: work)
+    }
+
+    /// 選択行・テーブル・パネルなど「フォーカス対象が変わる」全経路で呼ぶ統一クリア処理。
+    /// 表示中の tooltip + キーボード予約 + 両テーブルの hover dwell 予約を即時無効化する。
+    /// この関数を経由しないと「漏れ」になるので、新規にフォーカス遷移を増やす場合は必ず呼ぶこと。
+    private func flushTooltipForFocusChange() {
+        keyboardTooltipWorkItem?.cancel()
+        keyboardTooltipWorkItem = nil
+        (tableView as? MenuTableView)?.cancelHoverDwell()
+        (folderTableView as? MenuTableView)?.cancelHoverDwell()
+        hideSelectionTooltip()
     }
 
     private func nextFolderRow(from row: Int) -> Int? {
@@ -1439,11 +1495,15 @@ final class ClipSearchPanelController: NSObject {
             }
             return nil
         case 123: // Left arrow
-            if activeList == .folder, folderPanelSide == .right {
-                activeList = .main
+            // folder パネルが開いている時、戻る方向のキーで main に戻す。
+            // マウスホバーで folder を開いた場合 activeList は .main のままだが、
+            // ユーザーから見れば「サブメニューが見えている」状態なので戻れて当然。
+            // folderPanel.isVisible で統一判定する。
+            if folderPanel.isVisible, folderPanelSide == .right {
+                if activeList == .folder { activeList = .main }
                 folderPanel.orderOut(nil)
+                (folderTableView as? MenuTableView)?.cancelHoverDwell()
                 hideSelectionTooltip()
-                // 戻った先 (main) の選択行ツールチップを dwell 経由で予約。即時表示は避ける。
                 scheduleKeyboardTooltip(for: tableView)
                 return nil
             }
@@ -1453,9 +1513,10 @@ final class ClipSearchPanelController: NSObject {
             return event
         case 124: // Right arrow
             guard !hasMarkedText() else { return event }
-            if activeList == .folder, folderPanelSide == .left {
-                activeList = .main
+            if folderPanel.isVisible, folderPanelSide == .left {
+                if activeList == .folder { activeList = .main }
                 folderPanel.orderOut(nil)
+                (folderTableView as? MenuTableView)?.cancelHoverDwell()
                 hideSelectionTooltip()
                 scheduleKeyboardTooltip(for: tableView)
                 return nil
