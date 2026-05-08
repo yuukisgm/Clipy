@@ -11,13 +11,14 @@ private final class KeyablePanel: NSPanel {
 private final class MenuBackgroundView: NSVisualEffectView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        material = .menu
+        material = .hudWindow
         blendingMode = .behindWindow
         state = .active
         wantsLayer = true
-        layer?.cornerRadius = 14
+        layer?.cornerRadius = 4
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
+        maskImage = createCornerMask(radius: 4)
         applyBorder()
     }
 
@@ -25,6 +26,18 @@ private final class MenuBackgroundView: NSVisualEffectView {
         super.init(coder: coder)
     }
 
+    private func createCornerMask(radius: CGFloat) -> NSImage {
+            let size = radius * 2 + 1
+            let image = NSImage(size: NSSize(width: size, height: size))
+            image.lockFocus()
+            NSColor.black.set()
+            NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: size, height: size), xRadius: radius, yRadius: radius).fill()
+            image.unlockFocus()
+            image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+            image.resizingMode = .stretch
+            return image
+    }
+    
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         applyBorder()
@@ -204,14 +217,17 @@ private final class ClipRowView: NSTableRowView {
 final class ClipSearchPanelController: NSObject {
     private static let mainTableIdentifier = NSUserInterfaceItemIdentifier("main")
     private static let folderTableIdentifier = NSUserInterfaceItemIdentifier("folder")
-    private static let folderTopInset: CGFloat = 0
-    private static let folderBottomInset: CGFloat = 0
+    private static let folderTopInset: CGFloat = 2
+    private static let folderBottomInset: CGFloat = 2
     private static let folderVerticalPadding: CGFloat = folderTopInset + folderBottomInset
-    private static let snippetTopInset: CGFloat = 4
-    private static let snippetBottomInset: CGFloat = 4
+    private static let snippetTopInset: CGFloat = 2
+    private static let snippetBottomInset: CGFloat = 2
     private static let snippetVerticalInset: CGFloat = snippetTopInset + snippetBottomInset
     private static let snippetListBottomPadding: CGFloat = 0
-    private static let submenuListBottomPadding: CGFloat = 4
+    private static let submenuListBottomPadding: CGFloat = 0
+    // history モード時の chrome 高さ内訳:
+    // searchTop(10) + searchHeight(22) + separatorTop(6) + separatorH(1) + scrollTopFromSep(2) + scrollBottom(2)
+    private static let historyChromeHeight: CGFloat = 10 + 22 + 6 + 1 + 2 + 2
 
 
     // MARK: - Singleton
@@ -233,7 +249,7 @@ final class ClipSearchPanelController: NSObject {
         p.backgroundColor = .clear
         p.hidesOnDeactivate = false
         p.acceptsMouseMovedEvents = true
-        p.hasShadow = false
+        p.hasShadow = true
         p.isMovableByWindowBackground = false
         p.contentView = containerView
         return p
@@ -321,7 +337,7 @@ final class ClipSearchPanelController: NSObject {
         p.backgroundColor = .clear
         p.hidesOnDeactivate = false
         p.acceptsMouseMovedEvents = true
-        p.hasShadow = false
+        p.hasShadow = true
         p.contentView = folderContainerView
         return p
     }()
@@ -343,7 +359,7 @@ final class ClipSearchPanelController: NSObject {
         p.backgroundColor = .clear
         p.hidesOnDeactivate = false
         p.ignoresMouseEvents = true
-        p.hasShadow = false
+        p.hasShadow = true
         p.contentView = tooltipContainerView
         return p
     }()
@@ -534,9 +550,9 @@ final class ClipSearchPanelController: NSObject {
         containerView.addSubview(scrollView)
 
         scrollTopToSeparatorConstraint = scrollView.topAnchor.constraint(equalTo: separatorLine.bottomAnchor, constant: 2)
-        scrollTopToContainerConstraint = scrollView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 4)
-        scrollBottomConstraint = scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -4)
-        searchTopConstraint = searchField.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 8)
+        scrollTopToContainerConstraint = scrollView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 2)
+        scrollBottomConstraint = scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -2)
+        searchTopConstraint = searchField.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 10)
         searchHeightConstraint = searchField.heightAnchor.constraint(equalToConstant: 22)
         separatorTopConstraint = separatorLine.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 6)
         separatorHeightConstraint = separatorLine.heightAnchor.constraint(equalToConstant: 1)
@@ -681,12 +697,12 @@ final class ClipSearchPanelController: NSObject {
         let isHistory = panelMode == .history
         searchField.isHidden = !isHistory
         separatorLine.isHidden = !isHistory
-        searchTopConstraint?.constant = isHistory ? 8 : 0
+        searchTopConstraint?.constant = isHistory ? 10 : 0
         searchHeightConstraint?.constant = isHistory ? 22 : 0
         separatorTopConstraint?.constant = isHistory ? 6 : 0
         separatorHeightConstraint?.constant = isHistory ? 1 : 0
-        scrollTopToContainerConstraint?.constant = isHistory ? 4 : Self.snippetTopInset
-        scrollBottomConstraint?.constant = isHistory ? -4 : -Self.snippetBottomInset
+        scrollTopToContainerConstraint?.constant = isHistory ? 2 : Self.snippetTopInset
+        scrollBottomConstraint?.constant = isHistory ? -2 : -Self.snippetBottomInset
         scrollTopToSeparatorConstraint?.constant = isHistory ? 2 : 0
         scrollTopToSeparatorConstraint?.isActive = false
         scrollTopToContainerConstraint?.isActive = false
@@ -801,6 +817,7 @@ final class ClipSearchPanelController: NSObject {
         resizeFolderPanel(anchorRow: row)
         layoutTableDocumentView(folderTableView)
         folderPanel.orderFront(nil)
+        folderPanel.invalidateShadow()
         if activate {
             activeList = .folder
         }
@@ -869,7 +886,7 @@ final class ClipSearchPanelController: NSObject {
         let rowCount = min(filteredRows.count, maxMainRowCount(for: maxHeight))
         let listHeight = rowsHeightForRows(rowCount, tableView: tableView) + listBottomPadding(for: tableView)
         let chromeHeight: CGFloat = panelMode == .history
-            ? 24 + 8 + 1 + 4 + 4 + 8 + 6
+            ? Self.historyChromeHeight
             : Self.snippetVerticalInset
         let totalHeight = chromeHeight + listHeight
         let minHeight: CGFloat = panelMode == .history
@@ -881,6 +898,7 @@ final class ClipSearchPanelController: NSObject {
         frame.size.height = min(max(totalHeight, minHeight), maxHeight)
         frame.origin.y -= (frame.size.height - oldHeight)
         panel.setFrame(frame, display: true, animate: false)
+        panel.invalidateShadow()
         layoutTableDocumentView(tableView)
     }
 
@@ -926,6 +944,7 @@ final class ClipSearchPanelController: NSObject {
         }
 
         folderPanel.setFrame(frame, display: true, animate: false)
+        folderPanel.invalidateShadow()
         if !folderSnippets.isEmpty {
             layoutTableDocumentView(folderTableView)
         }
@@ -953,7 +972,7 @@ final class ClipSearchPanelController: NSObject {
 
     private func maxMainRowCount(for maxHeight: CGFloat) -> Int {
         let nonRowHeight: CGFloat = panelMode == .history
-            ? 24 + 8 + 1 + 4 + 6 + 4 + 8
+            ? Self.historyChromeHeight
             : Self.snippetVerticalInset + Self.snippetListBottomPadding
         return max(1, Int((maxHeight - nonRowHeight) / rowPitch(tableView)))
     }
@@ -984,7 +1003,10 @@ final class ClipSearchPanelController: NSObject {
         let lastRow = min(rowCount, tableView.numberOfRows) - 1
         guard lastRow >= 0 else { return 0 }
         tableView.layoutSubtreeIfNeeded()
-        return ceilToBackingPixel(tableView.rect(ofRow: lastRow).maxY, in: tableView)
+        let lastRowRect = tableView.rect(ofRow: lastRow)
+        // 先頭行の上端マージン (rect(ofRow: 0).minY) を下端にも足して、上下対称の余白を確保。
+        let symmetricBottomPadding = tableView.rect(ofRow: 0).minY
+        return ceilToBackingPixel(lastRowRect.maxY + symmetricBottomPadding, in: tableView)
     }
 
     private func rowPitch(_ tableView: NSTableView) -> CGFloat {

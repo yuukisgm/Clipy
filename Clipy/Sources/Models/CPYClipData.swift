@@ -134,7 +134,8 @@ extension CPYClipData {
         init?(pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType, preloadedImage: NSImage? = nil) {
             switch type {
                 case .string:
-                    guard let str = pasteboard.string(forType: .string)?.trimTrailing, str.isNotEmpty else { return nil }
+                    // 保存時に両端の空白・改行を除去。ツールチップ表示・ペースト・ストレージ全てに効く。
+                    guard let str = pasteboard.string(forType: .string)?.trim, str.isNotEmpty else { return nil }
                     self = .string(str)
                 case .fileURL:
                 guard let str = pasteboard.string(forType: .fileURL)?.trim, str.isNotEmpty else { return nil }
@@ -144,10 +145,11 @@ extension CPYClipData {
                     self = .URL(str)
                 case .rtf:
                     guard let data = pasteboard.data(forType: .rtf) else { return nil }
-                    self = .rtf(data)
+                    // RTF プレーンテキストの両端空白・改行を除去して再エンコード。Xcode 等からのコードコピーで効く。
+                    self = .rtf(Self.trimRichTextData(data, documentType: .rtf) ?? data)
                 case .rtfd:
                     guard let data = pasteboard.data(forType: .rtfd) else { return nil }
-                    self = .rtfd(data)
+                    self = .rtfd(Self.trimRichTextData(data, documentType: .rtfd) ?? data)
                 case .tiff:
                     let image = preloadedImage ?? (pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage)
                     guard let img = image else { return nil }
@@ -160,6 +162,45 @@ extension CPYClipData {
                     lWarning("unkonwn type:", type)
                     return nil
             }
+        }
+
+        // RTF/RTFD のプレーンテキスト先頭・末尾の空白＋改行を削って再エンコードして返す。
+        // 変更不要・解析失敗時は nil を返し、呼び元で元 data を使わせる。
+        private static func trimRichTextData(_ data: Data, documentType: NSAttributedString.DocumentType) -> Data? {
+            let readOptions: [NSAttributedString.DocumentReadingOptionKey: Any] = [.documentType: documentType]
+            var docAttrs: NSDictionary?
+            guard let attr = try? NSMutableAttributedString(data: data, options: readOptions, documentAttributes: &docAttrs) else {
+                return nil
+            }
+            let ns = attr.string as NSString
+            let length = ns.length
+            guard length > 0 else { return nil }
+
+            let ws = CharacterSet.whitespacesAndNewlines
+            var leading = 0
+            while leading < length,
+                  let scalar = UnicodeScalar(ns.character(at: leading)),
+                  ws.contains(scalar) {
+                leading += 1
+            }
+            var trailing = 0
+            while trailing < length - leading,
+                  let scalar = UnicodeScalar(ns.character(at: length - 1 - trailing)),
+                  ws.contains(scalar) {
+                trailing += 1
+            }
+            if leading == 0 && trailing == 0 { return nil }
+            if leading + trailing >= length { return nil }
+
+            if trailing > 0 {
+                attr.deleteCharacters(in: NSRange(location: length - trailing, length: trailing))
+            }
+            if leading > 0 {
+                attr.deleteCharacters(in: NSRange(location: 0, length: leading))
+            }
+
+            let writeOptions: [NSAttributedString.DocumentAttributeKey: Any] = [.documentType: documentType]
+            return try? attr.data(from: NSRange(location: 0, length: attr.length), documentAttributes: writeOptions)
         }
 
         func recover(to pasteboard: NSPasteboard) {
