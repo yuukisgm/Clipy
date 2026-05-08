@@ -1,6 +1,7 @@
 import Cocoa
 import PINCache
 import RealmSwift
+import SwiftUI
 
 // Borderless NSPanel that can become key (required for IME and text input).
 private final class KeyablePanel: NSPanel {
@@ -8,47 +9,69 @@ private final class KeyablePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private final class MenuBackgroundView: NSVisualEffectView {
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        material = .hudWindow
-        blendingMode = .behindWindow
-        state = .active
+// SwiftUI 製の透過背景。NSVisualEffectView を NSViewRepresentable で埋め、
+// clipShape(.continuous) で角丸を当て、上から枠線を overlay する。
+// AppKit の layer.cornerRadius / maskImage では NSVisualEffectView の vibrancy
+// クリップが甘く四角い角が残るため、SwiftUI レンダラの合成段クリップに任せる。
+private struct VisualEffectBackdrop: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView()
+        v.material = .popover
+        v.blendingMode = .behindWindow
+        v.state = .active
+        v.isEmphasized = false
+        return v
+    }
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+private struct PanelBackdropView: View {
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        VisualEffectBackdrop()
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(SwiftUI.Color.white.opacity(0.16), lineWidth: 1))
+    }
+}
+
+// 検索パネルの container ビュー。
+// 自身は素の NSView。subview を以下の順で持つ:
+//   1. NSHostingView<PanelBackdropView>  ← 透過 + 角丸 + 枠線（SwiftUI clipShape）
+//   2. searchField / separatorLine / scrollView ← 既存 AppKit ツリーがそのまま乗る
+// 自身の layer に cornerRadius=12 + masksToBounds=true をかけて、
+// AppKit 側の subview もウィンドウ角に従ってクリップされるようにする。
+// （SwiftUI clipShape は背景の vibrancy をクリップする役目、
+//   layer.cornerRadius は AppKit subview をクリップする役目で二重 / 同形状）
+private final class MenuBackgroundView: NSView {
+    static let cornerRadius: CGFloat = 12
+
+    init() {
+        super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 4
-        layer?.cornerCurve = .continuous
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.cornerRadius = Self.cornerRadius
+        if #available(macOS 11.0, *) {
+            layer?.cornerCurve = .continuous
+        }
         layer?.masksToBounds = true
-        maskImage = createCornerMask(radius: 4)
-        applyBorder()
+
+        let host = NSHostingView(rootView: PanelBackdropView(cornerRadius: Self.cornerRadius))
+        host.translatesAutoresizingMaskIntoConstraints = false
+        host.wantsLayer = true
+        host.layer?.backgroundColor = NSColor.clear.cgColor
+        addSubview(host)
+        NSLayoutConstraint.activate([
+            host.leadingAnchor.constraint(equalTo: leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: trailingAnchor),
+            host.topAnchor.constraint(equalTo: topAnchor),
+            host.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-    }
-
-    private func createCornerMask(radius: CGFloat) -> NSImage {
-            let size = radius * 2 + 1
-            let image = NSImage(size: NSSize(width: size, height: size))
-            image.lockFocus()
-            NSColor.black.set()
-            NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: size, height: size), xRadius: radius, yRadius: radius).fill()
-            image.unlockFocus()
-            image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-            image.resizingMode = .stretch
-            return image
-    }
-    
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        applyBorder()
-    }
-
-    private func applyBorder() {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        layer?.borderWidth = 1
-        layer?.borderColor = (dark
-            ? NSColor.white.withAlphaComponent(0.16)
-            : NSColor.black.withAlphaComponent(0.18)).cgColor
     }
 }
 
@@ -521,6 +544,8 @@ final class ClipSearchPanelController: NSObject {
     private var separatorHeightConstraint: NSLayoutConstraint?
     private var folderTopConstraint: NSLayoutConstraint?
     private var folderBottomConstraint: NSLayoutConstraint?
+    private var didSetupMainLayout = false
+    private var didSetupFolderLayout = false
 
     // MARK: - App Tracking
 
@@ -543,7 +568,8 @@ final class ClipSearchPanelController: NSObject {
     // MARK: - Layout
 
     private func setupLayout() {
-        guard containerView.subviews.isEmpty else { return }
+        guard !didSetupMainLayout else { return }
+        didSetupMainLayout = true
 
         containerView.addSubview(searchField)
         containerView.addSubview(separatorLine)
@@ -576,7 +602,8 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func setupFolderLayout() {
-        guard folderContainerView.subviews.isEmpty else { return }
+        guard !didSetupFolderLayout else { return }
+        didSetupFolderLayout = true
 
         folderContainerView.addSubview(folderScrollView)
         folderTopConstraint = folderScrollView.topAnchor.constraint(equalTo: folderContainerView.topAnchor, constant: Self.folderTopInset)
