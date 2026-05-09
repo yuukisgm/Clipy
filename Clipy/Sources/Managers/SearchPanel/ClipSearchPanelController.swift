@@ -288,9 +288,50 @@ private final class MenuSearchField: NSTextField {
     }
 }
 
-// Always shows accent-colored selection regardless of focus state — matches NSMenu behavior.
+// 右クリックメニュー (NSMenu) と同じ選択ハイライト処理。
+// NSVisualEffectView の `.selection` material は NSMenu が内部で使っているのと同じ処理で、
+// アクセントカラーをアクセシビリティ設定・ライト/ダーク・透過設定に追従させて描画する。
 private final class ClipRowView: NSTableRowView {
+    private let selectionEffectView: NSVisualEffectView = {
+        let v = NSVisualEffectView()
+        v.material = .selection
+        v.blendingMode = .behindWindow
+        v.state = .active
+        v.isEmphasized = true
+        v.wantsLayer = true
+        v.layer?.cornerRadius = 8
+        v.layer?.cornerCurve = .continuous
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.isHidden = true
+        return v
+    }()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupSelectionLayer()
+    }
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupSelectionLayer()
+    }
+
+    private func setupSelectionLayer() {
+        addSubview(selectionEffectView, positioned: .below, relativeTo: nil)
+        let inset: CGFloat = 8
+        NSLayoutConstraint.activate([
+            selectionEffectView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
+            selectionEffectView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+            selectionEffectView.topAnchor.constraint(equalTo: topAnchor),
+            selectionEffectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    override var isSelected: Bool {
+        didSet { selectionEffectView.isHidden = !isSelected }
+    }
     override var isEmphasized: Bool { get { true } set {} }
+    // 既存の不透明塗りを潰して、vibrancy オーバーレイにハイライト描画を委ねる。
+    override func drawSelection(in dirtyRect: NSRect) {}
 }
 
 // Floating search panel for clipboard history.
