@@ -137,7 +137,10 @@ private final class MenuTableView: NSTableView {
     // 行をまたいだ後、マウスが止まって dwell ミリ秒経ったら handler を呼ぶ（ツールチップ表示）。
     // スクロール中・速い移動中はキャンセルされ続けるので、ツールチップ表示が走らない。
     private var hoverDwellWorkItem: DispatchWorkItem?
-    private static let hoverDwellMillis: Int = 1500
+    static let initialHoverDwellMillis: Int = 1500
+    // 一度ツールチップを表示した後は、パネルが閉じられるまで即時表示にしたい。
+    // controller 側でこの値を 0 に書き換える。close/show 時に 1500 に戻す。
+    var hoverDwellMillis: Int = MenuTableView.initialHoverDwellMillis
     // ホバー由来の selectRowIndexes か矢印キー由来かを区別するフラグ。
     // selectionDidChange 通知は同期発火なので、selectRowIndexes 前後で短時間 true にすれば良い。
     // controller 側の tableViewSelectionDidChange でこのフラグを読み、ホバー時はツールチップを抑制する。
@@ -194,7 +197,7 @@ private final class MenuTableView: NSTableView {
             self.hoverSelectionHandler?(self)
         }
         hoverDwellWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.hoverDwellMillis), execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(hoverDwellMillis), execute: work)
     }
 
     override func reloadData() {
@@ -469,6 +472,18 @@ final class ClipSearchPanelController: NSObject {
         f.textColor = tooltipContainerView.textColor()
         f.translatesAutoresizingMaskIntoConstraints = false
         f.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        // RTF の段落属性により text rect が cell より大きく出ると、デフォルト cell では
+        // テキストが上寄せに描かれて下に空白ができる。縦中央寄せ cell に差し替えて常に中央表示にする。
+        let centeredCell = MenuItemTextFieldCell(textCell: "")
+        centeredCell.isBordered = false
+        centeredCell.drawsBackground = false
+        centeredCell.lineBreakMode = .byTruncatingTail
+        centeredCell.usesSingleLineMode = false
+        centeredCell.wraps = true
+        centeredCell.isEditable = false
+        centeredCell.isSelectable = false
+        f.cell = centeredCell
+        f.maximumNumberOfLines = 6
         return f
     }()
 
@@ -619,7 +634,25 @@ final class ClipSearchPanelController: NSObject {
     // 矢印キー / 番号キー連打時のツールチップを debounce する。連打中はキャンセルされ続けるので、
     // 止まってから 1 回だけ表示が走る。連打中の重い tooltip 描画を抑える狙い。
     private var keyboardTooltipWorkItem: DispatchWorkItem?
-    private static let keyboardTooltipDwellMillis: Int = 1500
+    private static let initialKeyboardTooltipDwellMillis: Int = 1500
+    // パネル表示中に一度でもツールチップが出たら、以降は閉じられるまで即時表示する。
+    // showSelectionTooltip が成功したタイミングで true にし、両テーブルの hoverDwellMillis も 0 に揃える。
+    // close()/show* で false に戻し、1500 に戻す。
+    private var tooltipShownOnceThisSession: Bool = false
+    private func currentKeyboardTooltipDwellMillis() -> Int {
+        tooltipShownOnceThisSession ? 0 : Self.initialKeyboardTooltipDwellMillis
+    }
+    private func setTooltipImmediateModeIfNeeded() {
+        guard !tooltipShownOnceThisSession else { return }
+        tooltipShownOnceThisSession = true
+        (tableView as? MenuTableView)?.hoverDwellMillis = 0
+        (folderTableView as? MenuTableView)?.hoverDwellMillis = 0
+    }
+    private func resetTooltipDwellMode() {
+        tooltipShownOnceThisSession = false
+        (tableView as? MenuTableView)?.hoverDwellMillis = MenuTableView.initialHoverDwellMillis
+        (folderTableView as? MenuTableView)?.hoverDwellMillis = MenuTableView.initialHoverDwellMillis
+    }
     // Continuously tracked so we always know where to paste even if frontmostApplication
     // returns nil at the moment the hotkey fires.
     private var lastActiveApp: NSRunningApplication?
@@ -718,6 +751,7 @@ final class ClipSearchPanelController: NSObject {
         updateTableMetrics()
         loadClips()
         suppressInitialTooltip = true
+        resetTooltipDwellMode()
         applyFilter("")
 
         resizePanel()
@@ -751,6 +785,7 @@ final class ClipSearchPanelController: NSObject {
         applyPanelModeLayout()
         updateTableMetrics()
         suppressInitialTooltip = true
+        resetTooltipDwellMode()
         loadSnippetRows()
 
         resizePanel()
@@ -776,6 +811,7 @@ final class ClipSearchPanelController: NSObject {
         applyPanelModeLayout()
         updateTableMetrics()
         suppressInitialTooltip = true
+        resetTooltipDwellMode()
         filteredRows = enabledSnippets(in: folder).enumerated().map { .snippet($0.element, listNumber: $0.offset + 1) }
         folderPanel.orderOut(nil)
         tableView.reloadData()
@@ -806,6 +842,7 @@ final class ClipSearchPanelController: NSObject {
         (tableView as? MenuTableView)?.cancelHoverDwell()
         (folderTableView as? MenuTableView)?.cancelHoverDwell()
         hideSelectionTooltip()
+        resetTooltipDwellMode()
         folderPanel.orderOut(nil)
         panel.orderOut(nil)
         searchField.stringValue = ""
@@ -1457,7 +1494,7 @@ final class ClipSearchPanelController: NSObject {
             self.showSelectionTooltip(for: tableView)
         }
         keyboardTooltipWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.keyboardTooltipDwellMillis), execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(currentKeyboardTooltipDwellMillis()), execute: work)
     }
 
     /// 選択行・テーブル・パネルなど「フォーカス対象が変わる」全経路で呼ぶ統一クリア処理。
@@ -1690,6 +1727,100 @@ final class ClipSearchPanelController: NSObject {
             .trim
     }
 
+    // dataHash → 整形済み NSAttributedString のキャッシュ。クリップが消されない限り再利用できる。
+    // 件数キャップ 64 で枯らさない（パネル 1 セッションでさわるクリップ数を超えない想定）。
+    private var richTooltipCache: [String: NSAttributedString] = [:]
+    private static let richTooltipCacheLimit = 64
+    // 「RTF を持っていない」と確定したクリップを次回 IO せずにスキップするためのネガティブキャッシュ。
+    private var richTooltipMissCache: Set<String> = []
+
+    private func richTooltipAttributedString(for clip: CPYClip,
+                                             maxLength: Int,
+                                             baseFont: NSFont,
+                                             baseColor: NSColor) -> NSAttributedString? {
+        let dataHash = clip.dataHash
+        if let cached = richTooltipCache[dataHash] {
+            return normalizeRichAttributed(cached, baseFont: baseFont, baseColor: baseColor, maxLength: maxLength)
+        }
+        if richTooltipMissCache.contains(dataHash) { return nil }
+        let path = clip.dataPath
+        guard !path.isEmpty else { return nil }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let clipData = try? JSONDecoder().decode(CPYClipData.self, from: data) else {
+            richTooltipMissCache.insert(dataHash)
+            return nil
+        }
+        var rtfData: Data?
+        var docType: NSAttributedString.DocumentType = .rtf
+        for token in clipData.content {
+            switch token {
+            case .rtfd(let d): rtfData = d; docType = .rtfd
+            case .rtf(let d): if rtfData == nil { rtfData = d; docType = .rtf }
+            default: break
+            }
+            if docType == .rtfd { break }
+        }
+        guard let rtfData,
+              let parsed = try? NSAttributedString(data: rtfData,
+                                                   options: [.documentType: docType],
+                                                   documentAttributes: nil),
+              parsed.length > 0 else {
+            richTooltipMissCache.insert(dataHash)
+            return nil
+        }
+        if richTooltipCache.count >= Self.richTooltipCacheLimit {
+            richTooltipCache.removeAll(keepingCapacity: true)
+        }
+        richTooltipCache[dataHash] = parsed
+        return normalizeRichAttributed(parsed, baseFont: baseFont, baseColor: baseColor, maxLength: maxLength)
+    }
+
+    // 元の attributedString をツールチップ用に最小加工してプレビュー的に出す:
+    // - 文字数を maxLength にクリップ
+    // - フォントサイズだけ 18pt 上限でクランプ（家族名・bold/italic 等のトレイトは保持）
+    // - 前景色・背景色は元のまま保持（コピー元の見た目を尊重）
+    private static let richTooltipMaxFontSize: CGFloat = 20
+    private func normalizeRichAttributed(_ source: NSAttributedString,
+                                         baseFont: NSFont,
+                                         baseColor: NSColor,
+                                         maxLength: Int) -> NSAttributedString {
+        let length = source.length
+        let clipLen = min(length, maxLength)
+        let mutable = NSMutableAttributedString(attributedString: source.attributedSubstring(from: NSRange(location: 0, length: clipLen)))
+        // 末尾の空白・改行を物理的に削除。残っていると boundingRect が空段落ぶんの高さを返す。
+        let ws = CharacterSet.whitespacesAndNewlines
+        while mutable.length > 0 {
+            let last = (mutable.string as NSString).character(at: mutable.length - 1)
+            guard let scalar = UnicodeScalar(last), ws.contains(scalar) else { break }
+            mutable.deleteCharacters(in: NSRange(location: mutable.length - 1, length: 1))
+        }
+        guard mutable.length > 0 else { return mutable }
+        let full = NSRange(location: 0, length: mutable.length)
+        let cap = Self.richTooltipMaxFontSize
+        mutable.enumerateAttribute(.font, in: full, options: []) { value, range, _ in
+            let original = (value as? NSFont) ?? baseFont
+            guard original.pointSize > cap else { return }
+            let resized = NSFont(descriptor: original.fontDescriptor, size: cap) ?? baseFont
+            mutable.addAttribute(.font, value: resized, range: range)
+        }
+        // Word / TextEdit からの RTF は段落の前後に paragraphSpacing が付くことが多く、
+        // そのまま boundingRect に通すと「テキストは 1 行ぶんなのに高さは段落余白込み」になり、
+        // ツールチップ内でテキストが上寄りに見える。段落スペーシングをゼロに正規化して解消する。
+        // 行間 (lineSpacing) と minimum/maximum line height は保持して見た目はなるべく崩さない。
+        mutable.enumerateAttribute(.paragraphStyle, in: full, options: []) { value, range, _ in
+            let original = (value as? NSParagraphStyle) ?? NSParagraphStyle.default
+            let copy = original.mutableCopy() as! NSMutableParagraphStyle
+            copy.paragraphSpacing = 0
+            copy.paragraphSpacingBefore = 0
+            copy.lineSpacing = 0
+            copy.minimumLineHeight = 0
+            copy.maximumLineHeight = 0
+            copy.lineHeightMultiple = 0
+            mutable.addAttribute(.paragraphStyle, value: copy, range: range)
+        }
+        return mutable
+    }
+
     private func showSelectionTooltip(for tableView: NSTableView) {
         let row = tableView.selectedRow
         // 検索パネル本体が閉じている時は出さない。dwell タイマーのキャンセル漏れに対する保険。
@@ -1749,26 +1880,55 @@ final class ClipSearchPanelController: NSObject {
             tooltipColorSwatch.layer?.backgroundColor = color.cgColor
         }
 
-        guard let title = tooltipTitle(for: tableView, row: row), !title.isEmpty else {
-            hideSelectionTooltip()
-            return
-        }
         let maxLength = integerPreference(Preferences.Menu.maxLengthOfToolTip, fallback: 100)
-        let titleNSString = title as NSString
-        let clippedTitle = titleNSString.substring(to: min(titleNSString.length, maxLength))
-        tooltipLabel.stringValue = clippedTitle
-        tooltipLabel.font = NSFont.systemFont(ofSize: 13)
-        tooltipLabel.textColor = tooltipContainerView.textColor()
-
-        let font = tooltipLabel.font ?? NSFont.systemFont(ofSize: 13)
+        let baseFont = NSFont.systemFont(ofSize: 13)
+        let baseTextColor = tooltipContainerView.textColor()
         let swatchExtra: CGFloat = isColor ? (14 + 6) : 0
-        let textRect = (clippedTitle as NSString).boundingRect(
-            with: NSSize(width: 406 - swatchExtra, height: 120),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: font]
-        )
-        let width = min(max(ceil(textRect.width) + swatchExtra + 16, 32), 422)
-        let height = min(max(ceil(textRect.height) + 8, 22), 128)
+        let availableWidth: CGFloat = 406 - swatchExtra
+
+        // RTF/RTFD があればリッチテキストのまま表示。色とサイズはツールチップ用に正規化、
+        // 太字・イタリック等のフォントトレイトは元のまま保持する。
+        // 画像・カラー優先表示中はここを使わずプレーン表示にフォールバック。
+        let attributed: NSAttributedString?
+        if !isColor, !hasImage, let clip {
+            attributed = richTooltipAttributedString(for: clip,
+                                                    maxLength: maxLength,
+                                                    baseFont: baseFont,
+                                                    baseColor: baseTextColor)
+        } else {
+            attributed = nil
+        }
+
+        let displaySize: NSSize
+        if let attributed {
+            tooltipLabel.attributedStringValue = attributed
+            tooltipLabel.font = baseFont
+            // attributed.boundingRect は RTF の段落属性の影響で空高さを返しやすい。
+            // tooltipLabel の cell 自身に「この幅で何 pt 必要か」を計算させてその高さに揃える。
+            tooltipLabel.preferredMaxLayoutWidth = availableWidth
+            tooltipLabel.invalidateIntrinsicContentSize()
+            let intrinsic = tooltipLabel.intrinsicContentSize
+            let widthFit = min(ceil(intrinsic.width), availableWidth)
+            displaySize = NSSize(width: widthFit, height: ceil(intrinsic.height))
+        } else {
+            guard let title = tooltipTitle(for: tableView, row: row), !title.isEmpty else {
+                hideSelectionTooltip()
+                return
+            }
+            let titleNSString = title as NSString
+            let clippedTitle = titleNSString.substring(to: min(titleNSString.length, maxLength))
+            tooltipLabel.stringValue = clippedTitle
+            tooltipLabel.font = baseFont
+            tooltipLabel.textColor = baseTextColor
+            displaySize = (clippedTitle as NSString).boundingRect(
+                with: NSSize(width: availableWidth, height: 120),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: baseFont]
+            ).size
+        }
+
+        let width = min(max(ceil(displaySize.width) + swatchExtra + 16, 32), 422)
+        let height = min(max(ceil(displaySize.height) + 8, 22), 128)
         positionAndShowTooltip(tableView: tableView, row: row, size: NSSize(width: width, height: height))
     }
 
@@ -1787,6 +1947,7 @@ final class ClipSearchPanelController: NSObject {
         }
         tooltipPanel.setFrame(frame, display: true, animate: false)
         tooltipPanel.orderFrontRegardless()
+        setTooltipImmediateModeIfNeeded()
     }
 
     private func tooltipClip(for tableView: NSTableView, row: Int) -> CPYClip? {
