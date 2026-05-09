@@ -317,7 +317,7 @@ private final class ClipRowView: NSTableRowView {
 
     private func setupSelectionLayer() {
         addSubview(selectionEffectView, positioned: .below, relativeTo: nil)
-        let inset: CGFloat = 8
+        let inset: CGFloat = 10
         NSLayoutConstraint.activate([
             selectionEffectView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
             selectionEffectView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
