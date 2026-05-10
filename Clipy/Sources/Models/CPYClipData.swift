@@ -45,6 +45,9 @@ final class CPYClipData: NSObject, Codable {
     }
 
     var identifier: String {
+        if let value = stringValue?.replace(pattern: "\\r\\n?", withTemplate: "\n").trim, value.isNotEmpty {
+            return ("text" + value.md5).md5
+        }
         // Sort token identifiers so the hash is independent of the
         // pasteboard type ordering (which varies per source app).
         let stableIdentifiers = content.compactMap { $0.deduplicationIdentifier }
@@ -60,34 +63,10 @@ final class CPYClipData: NSObject, Codable {
         return content.count > 0
     }
 
-    var thumbnailImage: NSImage? {
-        let defaults = UserDefaults.standard
-        let length = defaults.integer(forKey: Preferences.Menu.thumbnailLength)
-
-        let image: NSImage? = content.compactMap { value -> NSImage? in
-            switch value {
-            case .png(let image):
-                return image.image
-            case .tiff(let image):
-                return image.image
-            case .fileURL(let url):
-                guard url.firstMatch(pattern: "\\.(jpg|jpeg|png|bmp|tiff)$").isNotEmpty else {
-                    let ext = (url as NSString).pathExtension
-                    return CPYClipData.FileType(ext).image
-                }
-                var imagePath = url.replace(pattern: "^file://", withTemplate: "")
-                imagePath = imagePath.removingPercentEncoding ?? imagePath
-                return NSImage(contentsOfFile: imagePath) ?? FileType.image.image
-            default: return nil
-            }
-        }.first
-        return image?.cropToSquare(with: CGFloat(length), and: .center)
-    }
-    var colorCodeImage: NSImage? {
+    var colorCode: NSColor? {
         guard
-            let hex = stringValue?.firstMatch(pattern: "^(?:0x|#)?([0-9a-fA-F]{6,8})$"),
-            let color = NSColor(hexString: hex) else { return nil }
-        return NSImage.create(with: color, size: NSSize(width: 20, height: 20))
+            let hex = stringValue?.firstMatch(pattern: "^(?:0x|#)?([0-9a-fA-F]{6,8})$") else { return nil }
+        return NSColor(hexString: hex)
     }
 
     static var availableTypes: [NSPasteboard.PasteboardType] {
@@ -182,6 +161,10 @@ extension CPYClipData {
                     guard let img = image else { return nil }
                     self = .tiff(.init(image: img))
                 case .png:
+                    if let data = pasteboard.data(forType: .png), !data.isEmpty {
+                        self = .png(.init(data: data))
+                        return
+                    }
                     let image = preloadedImage ?? (pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage)
                     guard let img = image else { return nil }
                     self = .png(.init(image: img))
@@ -205,6 +188,7 @@ extension CPYClipData {
         // RTF/RTFD のプレーンテキスト先頭・末尾の空白＋改行を削って再エンコードして返す。
         // 変更不要・解析失敗時は nil を返し、呼び元で元 data を使わせる。
         private static func trimRichTextData(_ data: Data, documentType: NSAttributedString.DocumentType) -> Data? {
+            guard data.count <= maxRichTextTrimDataSize else { return nil }
             let readOptions: [NSAttributedString.DocumentReadingOptionKey: Any] = [.documentType: documentType]
             var docAttrs: NSDictionary?
             guard let attr = try? NSMutableAttributedString(data: data, options: readOptions, documentAttributes: &docAttrs) else {
@@ -240,6 +224,8 @@ extension CPYClipData {
             let writeOptions: [NSAttributedString.DocumentAttributeKey: Any] = [.documentType: documentType]
             return try? attr.data(from: NSRange(location: 0, length: attr.length), documentAttributes: writeOptions)
         }
+
+        private static let maxRichTextTrimDataSize = 512 * 1024
 
         func recover(to pasteboard: NSPasteboard) {
             switch self {

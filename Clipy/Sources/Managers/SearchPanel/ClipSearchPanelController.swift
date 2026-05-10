@@ -1,5 +1,4 @@
 import Cocoa
-import PINCache
 import SwiftUI
 
 // Borderless NSPanel that can become key (required for IME and text input).
@@ -334,7 +333,7 @@ private final class ClipRowView: NSTableRowView {
 }
 
 // Floating search panel for clipboard history.
-// Replaces the old NSMenu-based FilterMenu so IME (Japanese input) works correctly.
+// Floating search panel for clipboard history.
 final class ClipSearchPanelController: NSObject {
     private static let mainTableIdentifier = NSUserInterfaceItemIdentifier("main")
     private static let folderTableIdentifier = NSUserInterfaceItemIdentifier("folder")
@@ -555,6 +554,10 @@ final class ClipSearchPanelController: NSObject {
 
     private var tooltipImageWidthConstraint: NSLayoutConstraint?
     private var tooltipImageHeightConstraint: NSLayoutConstraint?
+    private var tooltipImagePreviewCache: [String: NSImage] = [:]
+    private var tooltipImagePreviewCacheOrder: [String] = []
+    private static let tooltipImagePreviewCacheLimit = 6
+    private static let tooltipImagePreviewMaxSize = NSSize(width: 360, height: 260)
 
     private lazy var tooltipContentStack: NSStackView = {
         let labelRow = NSStackView(views: [tooltipColorSwatch, tooltipLabel])
@@ -1100,7 +1103,7 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func clipListTitle(_ clip: CPYClip) -> String {
-        if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
+        if clip.title.isEmpty && isImageClip(clip) { return NSLocalizedString("(Image)", comment: "") }
         if clip.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue {
             if let url = URL(string: clip.title), url.scheme == "file" {
                 return "📋" + url.lastPathComponent
@@ -1736,7 +1739,7 @@ final class ClipSearchPanelController: NSObject {
         if tableView.identifier == Self.folderTableIdentifier {
             if row >= 0, row < folderClips.count {
                 let clip = folderClips[row]
-                if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
+                if clip.title.isEmpty && isImageClip(clip) { return NSLocalizedString("(Image)", comment: "") }
                 return tooltipDisplayTitle(fullTitle(for: clip))
             }
             guard row >= 0, row < folderSnippets.count else { return nil }
@@ -1746,7 +1749,7 @@ final class ClipSearchPanelController: NSObject {
         guard row >= 0, row < filteredRows.count else { return nil }
         switch filteredRows[row] {
         case let .clip(clip, _):
-            if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
+            if clip.title.isEmpty && isImageClip(clip) { return NSLocalizedString("(Image)", comment: "") }
             return tooltipDisplayTitle(fullTitle(for: clip))
         case let .snippet(snippet, _):
             return tooltipDisplayTitle(snippet.content)
@@ -1794,6 +1797,10 @@ final class ClipSearchPanelController: NSObject {
             }
             if docType == .rtfd { break }
         }
+        guard (rtfData?.count ?? 0) <= Self.richTooltipMaxDataSize else {
+            richTooltipMissCache.insert(dataHash)
+            return nil
+        }
         guard let rtfData,
               let parsed = try? NSAttributedString(data: rtfData,
                                                    options: [.documentType: docType],
@@ -1824,6 +1831,8 @@ final class ClipSearchPanelController: NSObject {
         richTooltipCache.removeAll(keepingCapacity: true)
         richTooltipCacheOrder.removeAll(keepingCapacity: true)
         richTooltipMissCache.removeAll(keepingCapacity: true)
+        tooltipImagePreviewCache.removeAll(keepingCapacity: true)
+        tooltipImagePreviewCacheOrder.removeAll(keepingCapacity: true)
     }
 
     // 元の attributedString をツールチップ用に最小加工してプレビュー的に出す:
@@ -1831,6 +1840,7 @@ final class ClipSearchPanelController: NSObject {
     // - フォントサイズだけ 18pt 上限でクランプ（家族名・bold/italic 等のトレイトは保持）
     // - 前景色・背景色は元のまま保持（コピー元の見た目を尊重）
     private static let richTooltipMaxFontSize: CGFloat = 20
+    private static let richTooltipMaxDataSize = 4 * 1024 * 1024
     private func normalizeRichAttributed(_ source: NSAttributedString,
                                          baseFont: NSFont,
                                          baseColor: NSColor,
@@ -1896,7 +1906,7 @@ final class ClipSearchPanelController: NSObject {
         let isFileURL = clip?.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue
         let hasImage = !isFileURL &&
                        clip?.isColorCode == false &&
-                       clip?.thumbnailPath.isNotEmpty == true &&
+                       clip.map(isImageClip) == true &&
                        defaults.bool(forKey: Preferences.Menu.showImageInTheMenu)
 
         tooltipImageView.isHidden = !hasImage
@@ -1905,23 +1915,18 @@ final class ClipSearchPanelController: NSObject {
 
         prepareTooltipAnchor(in: tableView, row: row)
 
-        if hasImage, let thumbnailPath = clip?.thumbnailPath {
-            if let cached = PINCache.shared.memoryCache.object(forKey: thumbnailPath) as? NSImage {
-                tooltipImageView.image = cached
-                let maxDim: CGFloat = 200
-                let natural = cached.size
-                let scale = min(maxDim / natural.width, maxDim / natural.height, 1.0)
-                let displayW = max(ceil(natural.width * scale), 40)
-                let displayH = max(ceil(natural.height * scale), 40)
+        if hasImage, let clip {
+            if let preview = tooltipImagePreview(for: clip) {
+                tooltipImageView.image = preview
+                let natural = preview.size
+                let displayW = max(ceil(natural.width), 40)
+                let displayH = max(ceil(natural.height), 40)
                 tooltipImageWidthConstraint?.constant = displayW
                 tooltipImageHeightConstraint?.constant = displayH
                 positionAndShowTooltip(tableView: tableView, row: row,
                                        size: NSSize(width: displayW + 16, height: displayH + 8))
                 return
             }
-            // Not in memory cache yet — kick off async load and fall through to text fallback.
-            // Next hover will show the image once cached.
-            loadTooltipImage(thumbnailPath: thumbnailPath)
             tooltipImageView.isHidden = true
         }
 
@@ -1941,7 +1946,7 @@ final class ClipSearchPanelController: NSObject {
         // 太字・イタリック等のフォントトレイトは元のまま保持する。
         // 画像・カラー優先表示中はここを使わずプレーン表示にフォールバック。
         let attributed: NSAttributedString?
-        if !isColor, !hasImage, let clip, shouldAttemptRichTooltip(for: clip) {
+        if !isColor, !hasImage, let clip {
             attributed = richTooltipAttributedString(for: clip,
                                                     maxLength: maxLength,
                                                     baseFont: baseFont,
@@ -1985,9 +1990,9 @@ final class ClipSearchPanelController: NSObject {
         positionAndShowTooltip(tableView: tableView, row: row, size: NSSize(width: width, height: height))
     }
 
-    private func shouldAttemptRichTooltip(for clip: CPYClip) -> Bool {
-        clip.primaryType == NSPasteboard.PasteboardType.rtf.rawValue ||
-            clip.primaryType == NSPasteboard.PasteboardType.rtfd.rawValue
+    private func isImageClip(_ clip: CPYClip) -> Bool {
+        clip.primaryType == NSPasteboard.PasteboardType.png.rawValue ||
+            clip.primaryType == NSPasteboard.PasteboardType.tiff.rawValue
     }
 
     private func positionAndShowTooltip(tableView: NSTableView, row: Int, size: NSSize) {
@@ -2018,19 +2023,42 @@ final class ClipSearchPanelController: NSObject {
         return clip
     }
 
-    private func loadTooltipImage(thumbnailPath: String) {
-        tooltipImageView.image = nil
-        if let cached = PINCache.shared.memoryCache.object(forKey: thumbnailPath) as? NSImage {
-            tooltipImageView.image = cached
-            return
+    private func tooltipImagePreview(for clip: CPYClip) -> NSImage? {
+        let dataHash = clip.dataHash
+        if let cached = tooltipImagePreviewCache[dataHash] {
+            touchTooltipImagePreviewCache(dataHash)
+            return cached
         }
-        PINCache.shared.object(forKeyAsync: thumbnailPath) { [weak self] _, _, object in
-            guard let self, let image = object as? NSImage else { return }
-            DispatchQueue.main.async {
-                guard self.tooltipPanel.isVisible else { return }
-                self.tooltipImageView.image = image
-            }
+
+        let preview: NSImage? = autoreleasepool {
+            guard let clipData = try? SQLiteClipStore.shared.decodedClipData(for: clip) else { return nil }
+            let image = clipData.content.lazy.compactMap { token -> NSImage? in
+                switch token {
+                case .png(let value), .tiff(let value):
+                    return value.image
+                default:
+                    return nil
+                }
+            }.first
+            return image?.resizedToFit(maxSize: Self.tooltipImagePreviewMaxSize)
         }
+        guard let preview else { return nil }
+        storeTooltipImagePreview(preview, for: dataHash)
+        return preview
+    }
+
+    private func storeTooltipImagePreview(_ image: NSImage, for dataHash: String) {
+        tooltipImagePreviewCache[dataHash] = image
+        touchTooltipImagePreviewCache(dataHash)
+        while tooltipImagePreviewCacheOrder.count > Self.tooltipImagePreviewCacheLimit {
+            let evicted = tooltipImagePreviewCacheOrder.removeFirst()
+            tooltipImagePreviewCache.removeValue(forKey: evicted)
+        }
+    }
+
+    private func touchTooltipImagePreviewCache(_ dataHash: String) {
+        tooltipImagePreviewCacheOrder.removeAll { $0 == dataHash }
+        tooltipImagePreviewCacheOrder.append(dataHash)
     }
 
     private func prepareTooltipAnchor(in tableView: NSTableView, row: Int) {

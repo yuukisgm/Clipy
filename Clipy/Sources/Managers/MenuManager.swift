@@ -224,10 +224,8 @@ private extension MenuManager {
             defaults.rx.observe(Int.self, Preferences.Menu.numberOfItemsPlaceInsideFolder, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Bool.self, Preferences.Menu.menuItemsAreMarkedWithNumbers, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Bool.self, Preferences.Menu.showToolTipOnMenuItem, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Bool.self, Preferences.Menu.showImageInTheMenu, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
             defaults.rx.observe(Bool.self, Preferences.Menu.addNumericKeyEquivalents, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.Menu.maxLengthOfToolTip, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Bool.self, Preferences.Menu.showColorPreviewInTheMenu, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged())
+            defaults.rx.observe(Int.self, Preferences.Menu.maxLengthOfToolTip, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged())
             .skip(1)
             .throttle(.seconds(1), scheduler: MainScheduler.instance)
             .asDriver(onErrorDriveWith: .empty())

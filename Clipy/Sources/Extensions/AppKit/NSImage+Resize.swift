@@ -47,6 +47,23 @@ extension NSImage {
         newImage.unlockFocus()
         return newImage
     }
+
+    func resizedToFit(maxSize: NSSize) -> NSImage {
+        guard size.width > 0, size.height > 0, maxSize.width > 0, maxSize.height > 0 else { return self }
+        let scale = min(maxSize.width / size.width, maxSize.height / size.height, 1.0)
+        guard scale < 1.0 else { return self }
+        let newSize = NSSize(width: floor(size.width * scale),
+                             height: floor(size.height * scale))
+        let newImage = NSImage(size: newSize)
+        newImage.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        draw(in: NSRect(origin: .zero, size: newSize),
+             from: NSRect(origin: .zero, size: size),
+             operation: .copy,
+             fraction: 1.0)
+        newImage.unlockFocus()
+        return newImage
+    }
 }
 
 fileprivate extension NSImage {

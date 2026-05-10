@@ -43,7 +43,6 @@ struct Preferences {
         static let showColorPreviewInTheMenu = "kCPYPrefShowColorPreviewInTheMenu"
 
         static let showImageInTheMenu = "showImageInTheMenu"
-        static let thumbnailLength = "thumbnailLength"
     }
 
     struct Beta {

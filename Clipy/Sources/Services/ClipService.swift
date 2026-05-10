@@ -12,7 +12,6 @@
 
 import Foundation
 import Cocoa
-import PINCache
 import RxSwift
 import RxCocoa
 import RxOptional
@@ -138,29 +137,7 @@ extension ClipService {
                 clip.title = data.clipTitle?[0...10000] ?? ""
                 clip.updateTime = unixTime
                 clip.primaryType = data.primaryType?.rawValue ?? ""
-
-                // Save thumbnail image
-                // preloadedImage があれば直接 cropToSquare し、CPYClipData.thumbnailImage 経由
-                // (Image.image getter が encode 済み Data を再 decode する) のフル解像度 CGImage
-                // 再展開を避ける。これだけで 1 画像あたり 30〜40 MB のピーク削減になる。
-                let thumbnailLength = AppEnvironment.current.defaults.integer(forKey: Preferences.Menu.thumbnailLength)
-                let thumbnailImage: NSImage? = {
-                    if let preloaded = preloadedImage {
-                        return preloaded.cropToSquare(with: CGFloat(thumbnailLength), and: .center)
-                    }
-                    return data.thumbnailImage
-                }()
-
-                if let thumbnailImage = thumbnailImage {
-                    let cost = UInt(thumbnailImage.size.width * thumbnailImage.size.height * 4)
-                    PINCache.shared.setObjectAsync(thumbnailImage, forKey: "\(unixTime)", withCost: cost, completion: nil)
-                    clip.thumbnailPath = "\(unixTime)"
-                } else if let colorCodeImage = data.colorCodeImage {
-                    let cost = UInt(colorCodeImage.size.width * colorCodeImage.size.height * 4)
-                    PINCache.shared.setObjectAsync(colorCodeImage, forKey: "\(unixTime)", withCost: cost, completion: nil)
-                    clip.thumbnailPath = "\(unixTime)"
-                    clip.isColorCode = true
-                }
+                clip.isColorCode = data.colorCode != nil
 
                 guard CPYUtilities.prepareSaveToPath(CPYUtilities.sqliteStorageFolder()) else { return }
                 do {

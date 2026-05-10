@@ -47,7 +47,6 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.showColorPreviewInTheMenu)
 
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.showImageInTheMenu)
-        defaultValues.updateValue(NSNumber(value: 32), forKey: Preferences.Menu.thumbnailLength)
 
         /* Updates */
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Update.enableAutomaticCheck)
