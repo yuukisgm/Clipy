@@ -12,7 +12,6 @@
 
 import Cocoa
 import ApplicationServices
-import RealmSwift
 import RxCocoa
 import RxSwift
 import RxOptional
@@ -39,9 +38,7 @@ final class MenuManager: NSObject {
     fileprivate let disposeBag = DisposeBag()
     fileprivate let notificationCenter = NotificationCenter.default
     fileprivate let kMaxKeyEquivalents = 10
-    // Realm
-    fileprivate let realm = try! Realm()
-    fileprivate var snippetToken: NotificationToken?
+    fileprivate var snippetChangeObserver: Any?
 
     // MARK: - Enum Values
     // raw values match the menu item tags in CPYGeneralPreferenceViewController.xib
@@ -191,15 +188,13 @@ extension MenuManager {
 // MARK: - Binding
 private extension MenuManager {
     func bind() {
-        // NOTE: Do not observe CPYClip changes here — createClipMenu() rebuilds
-        // only the snippet menu, which is independent of clip history. Watching
-        // clips would force a rebuild on every copy and waste CPU.
-        snippetToken = realm.objects(CPYFolder.self)
-                        .observe { [weak self] _ in
-                            DispatchQueue.main.async { [weak self] in
-                                self?.createClipMenu()
-                            }
-                        }
+        snippetChangeObserver = notificationCenter.addObserver(
+            forName: SQLiteClipStore.snippetsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.createClipMenu()
+        }
         // Menu icon
         AppEnvironment.current.defaults.rx.observe(Int.self, Preferences.General.statusTypeItem, retainSelf: false)
             .filterNil()
@@ -277,7 +272,7 @@ private extension MenuManager {
 // MARK: - Snippets
 private extension MenuManager {
     func addSnippetItems(_ menu: NSMenu, separateMenu: Bool) {
-        let folderResults = realm.objects(CPYFolder.self).sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
+        let folderResults = SQLiteClipStore.shared.folders()
         guard !folderResults.isEmpty else { return }
         if separateMenu {
             menu.addItem(NSMenuItem.separator())
@@ -301,7 +296,7 @@ private extension MenuManager {
 
                 var i = firstIndex
                 folder.snippets
-                    .sorted(byKeyPath: #keyPath(CPYSnippet.index), ascending: true)
+                    .sorted { $0.index < $1.index }
                     .filter { $0.enable }
                     .forEach { snippet in
                         let subMenuItem = makeSnippetMenuItem(snippet, listNumber: i)

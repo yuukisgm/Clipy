@@ -17,7 +17,6 @@ import RxOptional
 import Magnet
 import Screeen
 import RxScreeen
-import RealmSwift
 import LetsMove
 import LaunchAtLogin
 import PINCache
@@ -26,21 +25,20 @@ import PINCache
 class AppDelegate: NSObject, NSMenuItemValidation {
 
     // MARK: - Properties
-    let screenshotObserver = ScreenShotObserver()
     let disposeBag = DisposeBag()
+    private var screenshotObserver: ScreenShotObserver?
+    private var screenshotDisposeBag = DisposeBag()
 
     // MARK: - Init
     override func awakeFromNib() {
         super.awakeFromNib()
-        // Migrate Realm
-        Realm.migration()
+        SQLiteClipStore.shared.warmUp()
     }
 
     // MARK: - NSMenuItem Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(AppDelegate.clearAllHistory) {
-            let realm = try! Realm()
-            return !realm.objects(CPYClip.self).isEmpty
+            return SQLiteClipStore.shared.hasClips()
         }
         return true
     }
@@ -68,8 +66,10 @@ class AppDelegate: NSObject, NSMenuItemValidation {
     }
 
     @objc func restart() {
-        guard let path = Bundle.main.resourceURL?.deletingLastPathComponent().deletingLastPathComponent().absoluteString else { return }
-        _ = Process.launchedProcess(launchPath: "/usr/bin/open", arguments: [path])
+        let process = Process()
+        process.launchPath = "/bin/sh"
+        process.arguments = ["-c", "sleep 0.3; /usr/bin/open -n \"$1\"", "clipy-restart", Bundle.main.bundleURL.path]
+        try? process.run()
         NSApp.terminate(self)
     }
 
@@ -103,8 +103,7 @@ class AppDelegate: NSObject, NSMenuItemValidation {
             NSSound.beep()
             return
         }
-        let realm = try! Realm()
-        guard let clip = realm.object(ofType: CPYClip.self, forPrimaryKey: primaryKey) else {
+        guard let clip = SQLiteClipStore.shared.clip(dataHash: primaryKey, previewLength: 10000) else {
             lError("Cannot fetch clip data")
             NSSound.beep()
             return
@@ -119,8 +118,7 @@ class AppDelegate: NSObject, NSMenuItemValidation {
             NSSound.beep()
             return
         }
-        let realm = try! Realm()
-        guard let snippet = realm.object(ofType: CPYSnippet.self, forPrimaryKey: primaryKey) else {
+        guard let snippet = SQLiteClipStore.shared.snippet(identifier: primaryKey) else {
             lError("Cannot fetch snippet data")
             NSSound.beep()
             return
@@ -237,14 +235,27 @@ private extension AppDelegate {
         AppEnvironment.current.defaults.rx.observe(Bool.self, Preferences.Beta.observerScreenshot, retainSelf: false)
             .filterNil()
             .subscribe(onNext: { [weak self] enabled in
-                self?.screenshotObserver.isEnabled = enabled
+                self?.configureScreenshotObserver(enabled: enabled)
             })
             .disposed(by: disposeBag)
-        // Observe Screenshot image
-        screenshotObserver.rx.addedImage
-            .subscribe(onNext: { image in
-                AppEnvironment.current.clipService.create(with: "Screenshot", image: image)
-            })
-            .disposed(by: disposeBag)
+    }
+
+    func configureScreenshotObserver(enabled: Bool) {
+        guard enabled else {
+            screenshotObserver?.isEnabled = false
+            screenshotObserver = nil
+            screenshotDisposeBag = DisposeBag()
+            return
+        }
+        if screenshotObserver == nil {
+            let observer = ScreenShotObserver()
+            screenshotObserver = observer
+            observer.rx.addedImage
+                .subscribe(onNext: { image in
+                    AppEnvironment.current.clipService.create(with: "Screenshot", image: image)
+                })
+                .disposed(by: screenshotDisposeBag)
+        }
+        screenshotObserver?.isEnabled = true
     }
 }

@@ -11,7 +11,6 @@
 //
 
 import Cocoa
-import RealmSwift
 import KeyHolder
 import Magnet
 
@@ -66,12 +65,7 @@ final class CPYSnippetsEditorWindowController: NSWindowController {
         if #available(OSX 10.10, *) {
             self.window?.titlebarAppearsTransparent = true
         }
-        // HACK: Copy as an object that does not put under Realm management.
-        // https://github.com/realm/realm-cocoa/issues/1734
-        let realm = try! Realm()
-        folders = realm.objects(CPYFolder.self)
-                    .sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
-                    .map { $0.deepCopy() }
+        folders = SQLiteClipStore.shared.folders().map { $0.deepCopy() }
         outlineView.reloadData()
         // Select first folder
         if let folder = folders.first {
@@ -167,20 +161,15 @@ extension CPYSnippetsEditorWindowController {
 
         do {
             let data = try Data(contentsOf: url)
-            let realm = try! Realm()
-            let lastFolder = realm.objects(CPYFolder.self).sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true).last
-
             let decoder = JSONDecoder()
             let importFolders = try decoder.decode([CPYFolder].self, from: data)
-            if let last = lastFolder {
-                importFolders.forEach { folder in
-                    folder.index += last.index
-                }
+            let baseIndex = (SQLiteClipStore.shared.lastFolderIndex() ?? -1) + 1
+            for (offset, folder) in importFolders.enumerated() {
+                folder.index = baseIndex + offset
+                folder.snippets.forEach { $0.folder = folder }
+                folder.merge()
             }
-            realm.transaction { realm.add(importFolders, update: .all) }
-            folders = realm.objects(CPYFolder.self)
-                        .sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
-                        .map { $0.deepCopy() }
+            folders = SQLiteClipStore.shared.folders().map { $0.deepCopy() }
             outlineView.reloadData()
         } catch {
             NSSound.beep()
@@ -189,10 +178,7 @@ extension CPYSnippetsEditorWindowController {
     }
 
     @IBAction private func exportSnippetButtonTapped(_ sender: AnyObject) {
-        let realm = try! Realm()
-        let folders = realm
-            .objects(CPYFolder.self)
-            .sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
+        let folders = SQLiteClipStore.shared.folders()
 
         let panel = NSSavePanel()
         panel.accessoryView = nil

@@ -52,11 +52,9 @@ final class PasteService {
 
 // MARK: - Copy
 extension PasteService {
-    func paste(with clip: CPYClip, capturedFlags: NSEvent.ModifierFlags? = nil) {
-        guard !clip.isInvalidated else { return }
-
+    func paste(with clip: CPYClip, capturedFlags: NSEvent.ModifierFlags? = nil, targetBundleIdentifier: String? = nil) {
         do {
-            let clipData = try decodeClipData(from: clip)
+            let clipData = try SQLiteClipStore.shared.decodedClipData(for: clip)
             // Use caller-captured flags when available (async paste fires with stale currentEvent).
             let flags = capturedFlags ?? NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
 
@@ -66,7 +64,8 @@ extension PasteService {
             let isDeleteHistory = self.isDeleteHistory(flags: flags)
             guard isPastePlainText || isPasteAndDeleteHistory || isDeleteHistory else {
                 copyToPasteboard(with: clipData)
-                paste()
+                AppEnvironment.current.clipService.reorderAfterPasting(clip)
+                paste(targetBundleIdentifier: targetBundleIdentifier)
                 return
             }
 
@@ -76,18 +75,12 @@ extension PasteService {
             }
             // Paste history
             if isPastePlainText {
-                let plainText: String?
-                if let raw = clipData.stringValue,
-                   let url = URL(string: raw), url.scheme == "file" {
-                    plainText = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
-                } else {
-                    plainText = clipData.stringValue
-                }
-                copyToPasteboard(with: plainText)
-                paste()
+                copyToPasteboard(with: plainText(from: clipData))
+                AppEnvironment.current.clipService.reorderAfterPasting(clip)
+                paste(targetBundleIdentifier: targetBundleIdentifier)
             } else if isPasteAndDeleteHistory {
                 copyToPasteboard(with: clipData)
-                paste()
+                paste(targetBundleIdentifier: targetBundleIdentifier)
             }
             // Delete clip
             if isDeleteHistory || isPasteAndDeleteHistory {
@@ -98,11 +91,6 @@ extension PasteService {
         }
     }
 
-    private func decodeClipData(from clip: CPYClip) throws -> CPYClipData {
-        let data = try Data(contentsOf: .init(fileURLWithPath: clip.dataPath))
-        return try JSONDecoder().decode(CPYClipData.self, from: data)
-    }
-
     func copyToPasteboard(with string: String?) {
         guard let string = string else { return }
         lock.lock(); defer { lock.unlock() }
@@ -110,11 +98,12 @@ extension PasteService {
         let pasteboard = NSPasteboard.general
         pasteboard.declareTypes([.string], owner: nil)
         pasteboard.setString(string, forType: .string)
+        AppEnvironment.current.clipService.ignoreCurrentPasteboardChange()
     }
 
     func copyToPasteboard(with clip: CPYClip) {
         do {
-            copyToPasteboard(with: try decodeClipData(from: clip))
+            copyToPasteboard(with: try SQLiteClipStore.shared.decodedClipData(for: clip))
         } catch {
             lError(error)
         }
@@ -124,17 +113,49 @@ extension PasteService {
         lock.lock(); defer { lock.unlock() }
 
         let pasteboard = NSPasteboard.general
-        let types = clipData.content.compactMap(\.toPasteboardType)
+        var types = clipData.content.compactMap(\.toPasteboardType)
+        let plainText = plainText(from: clipData)
+        let tableTextTypes = Self.tableTextPasteboardTypes
+        if plainText != nil {
+            tableTextTypes.forEach {
+                if !types.contains($0) {
+                    types.append($0)
+                }
+            }
+        }
         pasteboard.declareTypes(types, owner: nil)
         clipData.content.forEach { type in
             type.recover(to: pasteboard)
         }
+        if let plainText = plainText {
+            tableTextTypes.forEach {
+                pasteboard.setString(plainText, forType: $0)
+            }
+        }
+        AppEnvironment.current.clipService.ignoreCurrentPasteboardChange()
     }
+
+    private func plainText(from clipData: CPYClipData) -> String? {
+        guard let raw = clipData.stringValue else { return nil }
+        if let url = URL(string: raw), url.scheme == "file" {
+            return url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+        }
+        return raw
+    }
+
+    private static let tableTextPasteboardTypes: [NSPasteboard.PasteboardType] = [
+        NSPasteboard.PasteboardType(rawValue: "NSStringPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "NeXT plain ascii pasteboard type"),
+        NSPasteboard.PasteboardType(rawValue: "NSTabularTextPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "public.utf8-tab-separated-values-text"),
+        NSPasteboard.PasteboardType(rawValue: "public.tab-separated-values-text"),
+        NSPasteboard.PasteboardType(rawValue: "public.comma-separated-values-text")
+    ]
 }
 
 // MARK: - Paste
 extension PasteService {
-    func paste() {
+    func paste(targetBundleIdentifier: String? = nil) {
         guard AppEnvironment.current.defaults.bool(forKey: Preferences.General.inputPasteCommand) else { return }
         // Check Accessibility Permission
         guard AppEnvironment.current.accessibilityService.isAccessibilityEnabled(isPrompt: false) else {
@@ -143,29 +164,53 @@ extension PasteService {
         }
 
         let vKeyCode = Sauce.shared.keyCode(for: .v)
+        let bundleIdentifier = targetBundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         DispatchQueue.main.async {
             let source = CGEventSource(stateID: .combinedSessionState)
             // Disable local keyboard events while pasting
             source?.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateSuppressionInterval)
-            // Simulate full Command+V sequence:
-            // flagsChanged(Cmd↓) → keyDown(V,⌘) → keyUp(V,⌘) → flagsChanged(Cmd↑)
-            // The final flagsChanged(Cmd↑) is required so virtualization apps
-            // (e.g. Parallels) don't see Command as stuck after the paste.
-            let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: true)
-            cmdDown?.type = .flagsChanged
-            cmdDown?.flags = .maskCommand
-            let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
-            keyVDown?.flags = .maskCommand
-            let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
-            keyVUp?.flags = .maskCommand
-            let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: false)
-            cmdUp?.type = .flagsChanged
-            cmdUp?.flags = []
-            // Post Paste Command
-            cmdDown?.post(tap: .cgAnnotatedSessionEventTap)
-            keyVDown?.post(tap: .cgAnnotatedSessionEventTap)
-            keyVUp?.post(tap: .cgAnnotatedSessionEventTap)
-            cmdUp?.post(tap: .cgAnnotatedSessionEventTap)
+            if Self.requiresClearingInternalClipboard(bundleIdentifier: bundleIdentifier) {
+                Self.postEscape(source: source)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    Self.postPasteCommand(source: source, vKeyCode: vKeyCode)
+                }
+                return
+            }
+            Self.postPasteCommand(source: source, vKeyCode: vKeyCode)
         }
+    }
+
+    private static func requiresClearingInternalClipboard(bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == "com.microsoft.Excel"
+    }
+
+    private static func postEscape(source: CGEventSource?) {
+        let escapeKeyCode: CGKeyCode = 0x35
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: escapeKeyCode, keyDown: true)
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: escapeKeyCode, keyDown: false)
+        keyDown?.post(tap: .cgAnnotatedSessionEventTap)
+        keyUp?.post(tap: .cgAnnotatedSessionEventTap)
+    }
+
+    private static func postPasteCommand(source: CGEventSource?, vKeyCode: CGKeyCode) {
+        // Simulate full Command+V sequence:
+        // flagsChanged(Cmd↓) → keyDown(V,⌘) → keyUp(V,⌘) → flagsChanged(Cmd↑)
+        // The final flagsChanged(Cmd↑) is required so virtualization apps
+        // (e.g. Parallels) don't see Command as stuck after the paste.
+        let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: true)
+        cmdDown?.type = .flagsChanged
+        cmdDown?.flags = .maskCommand
+        let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
+        keyVDown?.flags = .maskCommand
+        let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+        keyVUp?.flags = .maskCommand
+        let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: false)
+        cmdUp?.type = .flagsChanged
+        cmdUp?.flags = []
+        // Post Paste Command
+        cmdDown?.post(tap: .cgAnnotatedSessionEventTap)
+        keyVDown?.post(tap: .cgAnnotatedSessionEventTap)
+        keyVUp?.post(tap: .cgAnnotatedSessionEventTap)
+        cmdUp?.post(tap: .cgAnnotatedSessionEventTap)
     }
 }

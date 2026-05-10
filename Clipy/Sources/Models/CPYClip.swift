@@ -11,25 +11,43 @@
 //
 
 import Cocoa
-import RealmSwift
 
-final class CPYClip: Object {
+final class CPYClip: NSObject {
 
     // MARK: - Properties
-    @objc dynamic var dataPath = ""
-    @objc dynamic var title = ""
-    @objc dynamic var dataHash = ""
-    @objc dynamic var primaryType = ""
-    @objc dynamic var updateTime = 0
-    @objc dynamic var thumbnailPath = ""
-    @objc dynamic var isColorCode = false
+    var dataPath = ""
+    var title = ""
+    var dataHash = ""
+    var primaryType = ""
+    var updateTime = 0
+    var thumbnailPath = ""
+    var isColorCode = false
 
-    // MARK: Primary Key
-    override static func primaryKey() -> String? {
-        return "dataHash"
+    var isInvalidated: Bool {
+        return false
     }
 
-    public override class func indexedProperties() -> [String] {
-        return ["updateTime"]
+    convenience init(dataPath: String,
+                     title: String,
+                     dataHash: String,
+                     primaryType: String,
+                     updateTime: Int,
+                     thumbnailPath: String,
+                     isColorCode: Bool) {
+        self.init()
+        self.dataPath = dataPath
+        self.title = title
+        self.dataHash = dataHash
+        self.primaryType = primaryType
+        self.updateTime = updateTime
+        self.thumbnailPath = thumbnailPath
+        self.isColorCode = isColorCode
+    }
+}
+
+extension CPYClip {
+    func previewTitle(maxLength: Int) -> String {
+        guard maxLength > 0, title.count > maxLength else { return title }
+        return String(title.prefix(maxLength))
     }
 }

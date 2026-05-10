@@ -12,12 +12,9 @@
 
 import Foundation
 import Cocoa
-import RealmSwift
 import PINCache
 
 class FilterMenu: NSMenu {
-    fileprivate let realm = try! Realm()
-
     let config: FilterMenuConfig
 
     let homePath = FileManager.default.homeDirectoryForCurrentUser.absoluteString.replace(pattern: "^file://", withTemplate: "")
@@ -28,9 +25,9 @@ class FilterMenu: NSMenu {
         super.init(title: title)
 
         let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
-        let clipResults = realm
-            .objects(CPYClip.self)
-            .sorted(byKeyPath: #keyPath(CPYClip.updateTime), ascending: ascending)
+        let clipResults = SQLiteClipStore.shared.clips(limit: config.maxShowHistory,
+                                                       previewLength: max(24, Int(config.maxWidthOfMenuItem / max(config.menuFontSize * 0.5, 4)) + 16),
+                                                       ascending: ascending)
 
         let newItems = manageItems(clipResults, with: "")
         items = newItems
@@ -53,7 +50,7 @@ class FilterMenu: NSMenu {
 
 // MARK: - NSMenuItem
 fileprivate extension FilterMenu {
-    func manageItems(_ clipResults: Results<CPYClip>, with filter: String) -> [NSMenuItem] {
+    func manageItems(_ clipResults: [CPYClip], with filter: String) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
         let totalCount = min(clipResults.count, config.maxShowHistory)
         let remain = max(totalCount - config.placeInLine, 0)
@@ -137,7 +134,9 @@ fileprivate extension FilterMenu {
 
         if config.isShowToolTip {
             let maxLengthOfToolTip = AppEnvironment.current.defaults.integer(forKey: Preferences.Menu.maxLengthOfToolTip)
-            menuItem.toolTip = (originTitle as NSString).substring(to: min(originTitle.count, maxLengthOfToolTip))
+            let fullTitle = SQLiteClipStore.shared.title(dataHash: clip.dataHash, maxLength: maxLengthOfToolTip) ?? originTitle
+            let title = fullTitle as NSString
+            menuItem.toolTip = title.substring(to: min(title.length, maxLengthOfToolTip))
         }
 
         let isImage = !clip.isColorCode && config.isShowImage
