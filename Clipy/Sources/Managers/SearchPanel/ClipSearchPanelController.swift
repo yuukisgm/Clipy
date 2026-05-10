@@ -1,6 +1,5 @@
 import Cocoa
 import PINCache
-import RealmSwift
 import SwiftUI
 
 // Borderless NSPanel that can become key (required for IME and text input).
@@ -508,7 +507,7 @@ final class ClipSearchPanelController: NSObject {
     private lazy var tooltipLabel: NSTextField = {
         let f = NSTextField(labelWithString: "")
         f.lineBreakMode = .byTruncatingTail
-        f.maximumNumberOfLines = 6
+        f.maximumNumberOfLines = 0
         f.font = NSFont.systemFont(ofSize: 13)
         f.textColor = tooltipContainerView.textColor()
         f.translatesAutoresizingMaskIntoConstraints = false
@@ -524,7 +523,7 @@ final class ClipSearchPanelController: NSObject {
         centeredCell.isEditable = false
         centeredCell.isSelectable = false
         f.cell = centeredCell
-        f.maximumNumberOfLines = 6
+        f.maximumNumberOfLines = 0
         return f
     }()
 
@@ -661,7 +660,6 @@ final class ClipSearchPanelController: NSObject {
     private weak var folderTableViewRef: NSTableView?
     private var suppressSelectionSideEffects = false
     private var suppressInitialTooltip = false
-    private var realm = try! Realm()
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
     private var resignKeyObserver: Any?
@@ -884,6 +882,8 @@ final class ClipSearchPanelController: NSObject {
         (folderTableView as? MenuTableView)?.cancelHoverDwell()
         hideSelectionTooltip()
         resetTooltipDwellMode()
+        purgeTooltipCaches()
+        SQLiteClipStore.shared.purgeSessionCaches()
         folderPanel.orderOut(nil)
         panel.orderOut(nil)
         searchField.stringValue = ""
@@ -919,14 +919,10 @@ final class ClipSearchPanelController: NSObject {
     // MARK: - Data
 
     private func loadClips() {
-        realm.refresh()
         let maxHistory = integerPreference(Preferences.General.maxHistorySize, fallback: 100)
         let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
-        let results = realm
-            .objects(CPYClip.self)
-            .sorted(byKeyPath: #keyPath(CPYClip.updateTime), ascending: ascending)
-        let limit = maxHistory > 0 ? min(maxHistory, results.count) : results.count
-        allClips = Array(results[0..<limit])
+        let previewLength = menuPreviewLength()
+        allClips = SQLiteClipStore.shared.clips(limit: maxHistory, previewLength: previewLength, ascending: ascending)
         // allClips が更新されたので superset キャッシュは古い参照を抱えている。無効化する。
         lastSearchQuery = ""
         lastSearchFullMatches = nil
@@ -947,32 +943,13 @@ final class ClipSearchPanelController: NSObject {
             lastSearchQuery = ""
             lastSearchFullMatches = nil
         } else {
-            // superset 再利用: 直前クエリの延長なら前回絞り込み済み配列をベースに走査する。
-            let baseClips: [CPYClip]
-            if !lastSearchQuery.isEmpty,
-               query.hasPrefix(lastSearchQuery),
-               let cached = lastSearchFullMatches {
-                baseClips = cached
-            } else {
-                baseClips = allClips
-            }
-            // limit 件埋まったら走査打ち切り。打ち切った場合は完全結果が手に入らないので superset キャッシュ無効化。
-            var matched: [CPYClip] = []
-            matched.reserveCapacity(limit)
-            var truncated = false
-            for clip in baseClips {
-                if clip.title.localizedStandardContains(query) ||
-                   clipListTitle(clip).localizedStandardContains(query) {
-                    matched.append(clip)
-                    if matched.count >= limit {
-                        truncated = true
-                        break
-                    }
-                }
-            }
-            clips = matched
+            let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
+            clips = SQLiteClipStore.shared.searchClips(query: query,
+                                                       limit: limit,
+                                                       previewLength: menuPreviewLength(),
+                                                       ascending: ascending)
             lastSearchQuery = query
-            lastSearchFullMatches = truncated ? nil : matched
+            lastSearchFullMatches = nil
         }
         visibleClips = clips
         if closeFolderPanel {
@@ -1009,8 +986,7 @@ final class ClipSearchPanelController: NSObject {
 
     private func loadSnippetRows() {
         flushTooltipForFocusChange()
-        realm.refresh()
-        let folders = realm.objects(CPYFolder.self).sorted(byKeyPath: #keyPath(CPYFolder.index), ascending: true)
+        let folders = SQLiteClipStore.shared.folders()
         filteredRows = folders
             .filter { $0.enable }
             .map { folder in .snippetFolder(folder, enabledSnippets(in: folder)) }
@@ -1027,7 +1003,7 @@ final class ClipSearchPanelController: NSObject {
 
     private func enabledSnippets(in folder: CPYFolder) -> [CPYSnippet] {
         Array(folder.snippets
-            .sorted(byKeyPath: #keyPath(CPYSnippet.index), ascending: true)
+            .sorted { $0.index < $1.index }
             .filter { $0.enable })
     }
 
@@ -1117,12 +1093,33 @@ final class ClipSearchPanelController: NSObject {
         title.replace(pattern: "\\s+", withTemplate: " ").trim
     }
 
+    private func menuPreviewLength() -> Int {
+        let maxWidth = CGFloat(integerPreference(Preferences.General.maxWidthOfMenuItem, fallback: 260))
+        let fontSize = max(menuFontSize(), 1)
+        return max(24, Int(maxWidth / max(fontSize * 0.5, 4)) + 16)
+    }
+
     private func clipListTitle(_ clip: CPYClip) -> String {
         if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
-        if let url = URL(string: clip.title), url.scheme == "file" {
-            return "📋" + url.lastPathComponent
+        if clip.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue {
+            if let url = URL(string: clip.title), url.scheme == "file" {
+                return "📋" + url.lastPathComponent
+            }
+            return "📋" + clip.title
         }
         return clip.title
+    }
+
+    private func fullTitle(for clip: CPYClip) -> String {
+        let maxLength = integerPreference(Preferences.Menu.maxLengthOfToolTip, fallback: 100)
+        let title = SQLiteClipStore.shared.title(dataHash: clip.dataHash, maxLength: maxLength) ?? clip.title
+        if clip.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue {
+            if let url = URL(string: title), url.scheme == "file" {
+                return "📋" + url.lastPathComponent
+            }
+            return "📋" + title
+        }
+        return title
     }
 
     private func resizePanel() {
@@ -1296,7 +1293,6 @@ final class ClipSearchPanelController: NSObject {
         case let .clip(clip, _):
             let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
             if AppEnvironment.current.pasteService.isDeleteOnlyAction(flags: capturedFlags) {
-                guard !clip.isInvalidated else { return }
                 AppEnvironment.current.clipService.delete(with: clip)
                 loadClips()
                 applyFilter(searchField.stringValue)
@@ -1327,7 +1323,6 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func pasteToApp(_ targetApp: NSRunningApplication?, clip: CPYClip) {
-        guard !clip.isInvalidated else { return }
         // Capture modifier flags synchronously here; NSApp.currentEvent becomes stale
         // after the target app activates (activation event overwrites currentEvent).
         let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
@@ -1344,7 +1339,9 @@ final class ClipSearchPanelController: NSObject {
             guard !fired else { return }
             fired = true
             if let t = token { NSWorkspace.shared.notificationCenter.removeObserver(t); token = nil }
-            AppEnvironment.current.pasteService.paste(with: clip, capturedFlags: capturedFlags)
+            AppEnvironment.current.pasteService.paste(with: clip,
+                                                       capturedFlags: capturedFlags,
+                                                       targetBundleIdentifier: targetApp.bundleIdentifier)
         }
 
         token = NSWorkspace.shared.notificationCenter.addObserver(
@@ -1362,8 +1359,6 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func pasteSnippetToApp(_ targetApp: NSRunningApplication?, snippet: CPYSnippet) {
-        guard !snippet.isInvalidated else { return }
-
         let paste = {
             AppEnvironment.current.pasteService.copyToPasteboard(with: snippet.content)
             AppEnvironment.current.pasteService.paste()
@@ -1693,7 +1688,6 @@ final class ClipSearchPanelController: NSObject {
             let clip = folderClips[row]
             let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
             if AppEnvironment.current.pasteService.isDeleteOnlyAction(flags: capturedFlags) {
-                guard !clip.isInvalidated else { return }
                 AppEnvironment.current.clipService.delete(with: clip)
                 folderClips.remove(at: row)
                 if folderClips.isEmpty {
@@ -1743,7 +1737,7 @@ final class ClipSearchPanelController: NSObject {
             if row >= 0, row < folderClips.count {
                 let clip = folderClips[row]
                 if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
-                return tooltipDisplayTitle(clipListTitle(clip))
+                return tooltipDisplayTitle(fullTitle(for: clip))
             }
             guard row >= 0, row < folderSnippets.count else { return nil }
             return tooltipDisplayTitle(folderSnippets[row].content)
@@ -1753,7 +1747,7 @@ final class ClipSearchPanelController: NSObject {
         switch filteredRows[row] {
         case let .clip(clip, _):
             if clip.title.isEmpty && !clip.thumbnailPath.isEmpty { return NSLocalizedString("(Image)", comment: "") }
-            return tooltipDisplayTitle(clipListTitle(clip))
+            return tooltipDisplayTitle(fullTitle(for: clip))
         case let .snippet(snippet, _):
             return tooltipDisplayTitle(snippet.content)
         default:
@@ -1768,10 +1762,11 @@ final class ClipSearchPanelController: NSObject {
             .trim
     }
 
-    // dataHash → 整形済み NSAttributedString のキャッシュ。クリップが消されない限り再利用できる。
-    // 件数キャップ 64 で枯らさない（パネル 1 セッションでさわるクリップ数を超えない想定）。
+    // dataHash → 整形済み NSAttributedString のキャッシュ。
+    // 連続ホバーの体感だけを支え、メニュー閉鎖時には破棄する。
     private var richTooltipCache: [String: NSAttributedString] = [:]
-    private static let richTooltipCacheLimit = 64
+    private var richTooltipCacheOrder: [String] = []
+    private static let richTooltipCacheLimit = 10
     // 「RTF を持っていない」と確定したクリップを次回 IO せずにスキップするためのネガティブキャッシュ。
     private var richTooltipMissCache: Set<String> = []
 
@@ -1781,13 +1776,11 @@ final class ClipSearchPanelController: NSObject {
                                              baseColor: NSColor) -> NSAttributedString? {
         let dataHash = clip.dataHash
         if let cached = richTooltipCache[dataHash] {
+            touchRichTooltipCache(dataHash)
             return normalizeRichAttributed(cached, baseFont: baseFont, baseColor: baseColor, maxLength: maxLength)
         }
         if richTooltipMissCache.contains(dataHash) { return nil }
-        let path = clip.dataPath
-        guard !path.isEmpty else { return nil }
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-              let clipData = try? JSONDecoder().decode(CPYClipData.self, from: data) else {
+        guard let clipData = try? SQLiteClipStore.shared.decodedClipData(for: clip) else {
             richTooltipMissCache.insert(dataHash)
             return nil
         }
@@ -1809,11 +1802,28 @@ final class ClipSearchPanelController: NSObject {
             richTooltipMissCache.insert(dataHash)
             return nil
         }
-        if richTooltipCache.count >= Self.richTooltipCacheLimit {
-            richTooltipCache.removeAll(keepingCapacity: true)
-        }
-        richTooltipCache[dataHash] = parsed
+        storeRichTooltip(parsed, for: dataHash)
         return normalizeRichAttributed(parsed, baseFont: baseFont, baseColor: baseColor, maxLength: maxLength)
+    }
+
+    private func storeRichTooltip(_ value: NSAttributedString, for dataHash: String) {
+        richTooltipCache[dataHash] = value
+        touchRichTooltipCache(dataHash)
+        while richTooltipCacheOrder.count > Self.richTooltipCacheLimit {
+            let evicted = richTooltipCacheOrder.removeFirst()
+            richTooltipCache.removeValue(forKey: evicted)
+        }
+    }
+
+    private func touchRichTooltipCache(_ dataHash: String) {
+        richTooltipCacheOrder.removeAll { $0 == dataHash }
+        richTooltipCacheOrder.append(dataHash)
+    }
+
+    private func purgeTooltipCaches() {
+        richTooltipCache.removeAll(keepingCapacity: true)
+        richTooltipCacheOrder.removeAll(keepingCapacity: true)
+        richTooltipMissCache.removeAll(keepingCapacity: true)
     }
 
     // 元の attributedString をツールチップ用に最小加工してプレビュー的に出す:
@@ -1931,7 +1941,7 @@ final class ClipSearchPanelController: NSObject {
         // 太字・イタリック等のフォントトレイトは元のまま保持する。
         // 画像・カラー優先表示中はここを使わずプレーン表示にフォールバック。
         let attributed: NSAttributedString?
-        if !isColor, !hasImage, let clip {
+        if !isColor, !hasImage, let clip, shouldAttemptRichTooltip(for: clip) {
             attributed = richTooltipAttributedString(for: clip,
                                                     maxLength: maxLength,
                                                     baseFont: baseFont,
@@ -1962,15 +1972,22 @@ final class ClipSearchPanelController: NSObject {
             tooltipLabel.font = baseFont
             tooltipLabel.textColor = baseTextColor
             displaySize = (clippedTitle as NSString).boundingRect(
-                with: NSSize(width: availableWidth, height: 120),
+                with: NSSize(width: availableWidth, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 attributes: [.font: baseFont]
             ).size
         }
 
         let width = min(max(ceil(displaySize.width) + swatchExtra + 16, 32), 422)
-        let height = min(max(ceil(displaySize.height) + 8, 22), 128)
+        let screenHeight = tableView.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 600
+        let maxTooltipHeight = max(128, min(screenHeight * 0.6, 420))
+        let height = min(max(ceil(displaySize.height) + 8, 22), maxTooltipHeight)
         positionAndShowTooltip(tableView: tableView, row: row, size: NSSize(width: width, height: height))
+    }
+
+    private func shouldAttemptRichTooltip(for clip: CPYClip) -> Bool {
+        clip.primaryType == NSPasteboard.PasteboardType.rtf.rawValue ||
+            clip.primaryType == NSPasteboard.PasteboardType.rtfd.rawValue
     }
 
     private func positionAndShowTooltip(tableView: NSTableView, row: Int, size: NSSize) {

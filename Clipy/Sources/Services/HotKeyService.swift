@@ -13,7 +13,6 @@
 import Foundation
 import Cocoa
 import Magnet
-import RealmSwift
 
 final class HotKeyService: NSObject {
     // MARK: - Properties
@@ -202,8 +201,7 @@ extension HotKeyService {
 
     @objc func popupSnippetFolder(_ object: AnyObject) {
         guard let hotKey = object as? HotKey else { return }
-        let realm = try! Realm()
-        guard let folder = realm.object(ofType: CPYFolder.self, forPrimaryKey: hotKey.identifier) else {
+        guard let folder = SQLiteClipStore.shared.folder(identifier: hotKey.identifier) else {
             // When already deleted folder, remove keycombos
             unregisterSnippetHotKey(with: hotKey.identifier)
             return

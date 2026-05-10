@@ -31,6 +31,19 @@ final class CPYClipData: NSObject, Codable {
         }.first
     }
 
+    var clipTitle: String? {
+        return content.lazy.compactMap { type in
+            switch type {
+            case .string(let value), .URL(let value):
+                return value
+            case .fileURL(let value):
+                return Self.fileDisplayTitle(from: value)
+            default:
+                return nil
+            }
+        }.first
+    }
+
     var identifier: String {
         // Sort token identifiers so the hash is independent of the
         // pasteboard type ordering (which varies per source app).
@@ -80,7 +93,6 @@ final class CPYClipData: NSObject, Codable {
                 .rtf,
                 .rtfd,
                 .pdf,
-                .png,
                 .fileURL,
                 .URL,
                 .tiff]
@@ -90,7 +102,6 @@ final class CPYClipData: NSObject, Codable {
                 "RTF",
                 "RTFD",
                 "PDF",
-                "PNG",
                 "Filenames",
                 "URL",
                 "TIFF"]
@@ -118,6 +129,19 @@ final class CPYClipData: NSObject, Codable {
         super.init()
         self.content = [.string(title)]
     }
+
+    static func fileDisplayTitle(from value: String) -> String {
+        if let url = URL(string: value), url.scheme == "file" {
+            let lastPathComponent = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+            if lastPathComponent.isNotEmpty {
+                return lastPathComponent
+            }
+        }
+        var path = value.replace(pattern: "^file://", withTemplate: "")
+        path = path.removingPercentEncoding ?? path
+        let lastPathComponent = (path as NSString).lastPathComponent
+        return lastPathComponent.isNotEmpty ? lastPathComponent : value
+    }
 }
 
 extension CPYClipData {
@@ -130,6 +154,7 @@ extension CPYClipData {
         case URL(String)
         case png(Image)
         case tiff(Image)
+        case raw(type: String, data: Data)
 
         init?(pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType, preloadedImage: NSImage? = nil) {
             switch type {
@@ -159,9 +184,20 @@ extension CPYClipData {
                     guard let img = image else { return nil }
                     self = .png(.init(image: img))
                 default:
-                    lWarning("unkonwn type:", type)
-                    return nil
+                    guard let data = Self.rawData(from: pasteboard, type: type) else {
+                        lWarning("unkonwn type:", type)
+                        return nil
+                    }
+                    self = .raw(type: type.rawValue, data: data)
             }
+        }
+
+        private static func rawData(from pasteboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Data? {
+            if let data = pasteboard.data(forType: type), !data.isEmpty {
+                return data
+            }
+            guard let string = pasteboard.string(forType: type), string.isNotEmpty else { return nil }
+            return string.data(using: .utf8)
         }
 
         // RTF/RTFD のプレーンテキスト先頭・末尾の空白＋改行を削って再エンコードして返す。
@@ -222,6 +258,8 @@ extension CPYClipData {
                 case .pdf(let value):
                     guard let pdf = NSPDFImageRep(data: value) else { return }
                     pasteboard.setData(pdf.pdfRepresentation, forType: .pdf)
+                case .raw(let type, let data):
+                    pasteboard.setData(data, forType: NSPasteboard.PasteboardType(rawValue: type))
             }
         }
 
@@ -235,6 +273,7 @@ extension CPYClipData {
                 case .pdf: return .pdf
                 case .png: return .png
                 case .tiff: return .tiff
+                case .raw(let type, _): return NSPasteboard.PasteboardType(rawValue: type)
             }
         }
 
@@ -256,6 +295,8 @@ extension CPYClipData {
                 return "png" + (value.content?.md5 ?? "")
             case .pdf(let value):
                 return "pdf" + value.md5
+            case .raw(let type, let value):
+                return "raw" + type + value.md5
             }
         }
     }

@@ -12,7 +12,6 @@
 
 import Foundation
 import RxSwift
-import RealmSwift
 import PINCache
 
 final class DataCleanService {
@@ -35,45 +34,22 @@ final class DataCleanService {
 
     // MARK: - Delete Data
     func cleanDatas() {
-        let realm = try! Realm()
-        let flowHistories = overflowingClips(with: realm)
-        flowHistories
-            .filter { !$0.isInvalidated && !$0.thumbnailPath.isEmpty }
-            .map { $0.thumbnailPath }
-            .forEach { PINCache.shared.removeObject(forKey: $0) }
-        realm.transaction { realm.delete(flowHistories) }
-        cleanFiles(with: realm)
-    }
-
-    private func overflowingClips(with realm: Realm) -> Results<CPYClip> {
-        let clips = realm.objects(CPYClip.self).sorted(byKeyPath: #keyPath(CPYClip.updateTime), ascending: false)
         let maxHistorySize = AppEnvironment.current.defaults.integer(forKey: Preferences.General.maxHistorySize)
-
-        if clips.count <= maxHistorySize { return realm.objects(CPYClip.self).filter("FALSEPREDICATE") }
-        // Delete first clip
-        let lastClip = clips[maxHistorySize - 1]
-        if lastClip.isInvalidated { return realm.objects(CPYClip.self).filter("FALSEPREDICATE") }
-
-        // Deletion target
-        let updateTime = lastClip.updateTime
-        let targetClips = realm.objects(CPYClip.self).filter("updateTime < %d", updateTime)
-
-        return targetClips
+        SQLiteClipStore.shared.deleteOverflowingClips(maxHistorySize: maxHistorySize)
+        cleanFiles()
     }
 
-    private func cleanFiles(with realm: Realm) {
+    private func cleanFiles() {
         let fileManager = FileManager.default
-        guard let paths = try? fileManager.contentsOfDirectory(atPath: CPYUtilities.applicationSupportFolder()) else { return }
+        let storageFolder = CPYUtilities.sqliteStorageFolder()
+        guard let paths = try? fileManager.contentsOfDirectory(atPath: storageFolder) else { return }
 
-        let allClipPaths = Array(realm.objects(CPYClip.self)
-            .filter { !$0.isInvalidated }
-            .compactMap { $0.dataPath.components(separatedBy: "/").last })
+        let allClipPaths = SQLiteClipStore.shared.clipPayloadPaths()
 
         // Delete diff datas
-        DispatchQueue.main.async {
-            Set(allClipPaths).symmetricDifference(paths)
-                .map { CPYUtilities.applicationSupportFolder() + "/" + "\($0)" }
-                .forEach { CPYUtilities.deleteData(at: $0) }
-        }
+        Set(paths)
+            .subtracting(allClipPaths)
+            .map { storageFolder + "/" + "\($0)" }
+            .forEach { CPYUtilities.deleteData(at: $0) }
     }
 }

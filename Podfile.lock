@@ -12,11 +12,6 @@ PODS:
   - PINCache/Core (3.0.3):
     - PINOperation (~> 1.2.1)
   - PINOperation (1.2.2)
-  - Realm (10.43.0):
-    - Realm/Headers (= 10.43.0)
-  - Realm/Headers (10.43.0)
-  - RealmSwift (10.43.0):
-    - Realm (= 10.43.0)
   - RxCocoa (6.6.0):
     - RxRelay (= 6.6.0)
     - RxSwift (= 6.6.0)
@@ -39,7 +34,6 @@ DEPENDENCIES:
   - KeyHolder
   - LetsMove
   - PINCache
-  - RealmSwift
   - RxCocoa
   - RxOptional
   - RxScreeen
@@ -55,8 +49,6 @@ SPEC REPOS:
     - Magnet
     - PINCache
     - PINOperation
-    - Realm
-    - RealmSwift
     - RxCocoa
     - RxOptional
     - RxRelay
@@ -73,8 +65,6 @@ SPEC CHECKSUMS:
   Magnet: a44a5a14eecc77433cbaad1431b78f7d20725bf2
   PINCache: 7a8fc1a691173d21dbddbf86cd515de6efa55086
   PINOperation: daa34d4aa1d8449089be7d405b9d974abc4724c6
-  Realm: fc65bea3f5c3da2ecdc76324f180e054e7cf4eb0
-  RealmSwift: a7d48361c585769690c175428cc2bf15e1074444
   RxCocoa: 44a80de90e25b739b5aeaae3c8c371a32e3343cc
   RxOptional: 3664964c96b69dd20c9cf78bdfe546615e26eca8
   RxRelay: 45eaa5db8ee4fb50e5ebd57deec0159e97fa51e6
@@ -85,6 +75,6 @@ SPEC CHECKSUMS:
   SwiftGen: 1366a7f71aeef49954ca5a63ba4bef6b0f24138c
   SwiftLint: 5ce4d6a8ff83f1b5fd5ad5dbf30965d35af65e44
 
-PODFILE CHECKSUM: 455392d6d3a955845e9d1f03a06ed4e3f2918efd
+PODFILE CHECKSUM: 5df0c686be71121492dabeca1c576e806d831567
 
 COCOAPODS: 1.16.2

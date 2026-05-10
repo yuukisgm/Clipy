@@ -12,7 +12,6 @@
 
 import Foundation
 import Cocoa
-import RealmSwift
 import PINCache
 import RxSwift
 import RxCocoa
@@ -50,38 +49,31 @@ final class ClipService {
             .asDriver(onErrorDriveWith: .empty())
             .drive(onNext: { [weak self] in
                 self?.storeTypes = $0
+                SQLiteClipStore.shared.purgeSessionCaches()
             })
             .disposed(by: disposeBag)
     }
 
     func clearAll() {
-        let realm = try! Realm()
-        let clips = realm.objects(CPYClip.self)
-
-        // Delete saved images
-        clips
-            .filter { !$0.thumbnailPath.isEmpty }
-            .map { $0.thumbnailPath }
-            .forEach { PINCache.shared.removeObject(forKey: $0) }
-        // Delete Realm
-        realm.transaction { realm.delete(clips) }
-        // Delete writed datas
+        SQLiteClipStore.shared.deleteAllClips()
         AppEnvironment.current.dataCleanService.cleanDatas()
     }
 
     func delete(with clip: CPYClip) {
-        let realm = try! Realm()
-        // Delete saved images
-        let path = clip.thumbnailPath
-        if !path.isEmpty {
-            PINCache.shared.removeObject(forKey: path)
-        }
-        // Delete Realm
-        realm.transaction { realm.delete(clip) }
+        SQLiteClipStore.shared.deleteClip(clip)
+    }
+
+    func reorderAfterPasting(_ clip: CPYClip) {
+        guard AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting) else { return }
+        SQLiteClipStore.shared.touchClip(clip)
     }
 
     func incrementChangeCount() {
         cachedChangeCount.accept(cachedChangeCount.value + 1)
+    }
+
+    func ignoreCurrentPasteboardChange() {
+        cachedChangeCount.accept(NSPasteboard.general.changeCount)
     }
 
 }
@@ -139,12 +131,11 @@ extension ClipService {
             autoreleasepool {
                 // Saved time and path
                 let unixTime = Int(Date().timeIntervalSince1970)
-                let savedPath = CPYUtilities.applicationSupportFolder() + "/\(NSUUID().uuidString).data"
-                // Create Realm object
+                let savedPath = CPYUtilities.sqliteStorageFolder() + "/\(NSUUID().uuidString).data"
                 let clip = CPYClip()
                 clip.dataHash = data.identifier
                 clip.dataPath = savedPath
-                clip.title = data.stringValue?[0...10000] ?? ""
+                clip.title = data.clipTitle?[0...10000] ?? ""
                 clip.updateTime = unixTime
                 clip.primaryType = data.primaryType?.rawValue ?? ""
 
@@ -171,31 +162,25 @@ extension ClipService {
                     clip.isColorCode = true
                 }
 
-                if CPYUtilities.prepareSaveToPath(CPYUtilities.applicationSupportFolder()) {
-                    try? JSONEncoder().encode(data).write(to: .init(fileURLWithPath: savedPath))
-
-                    DispatchQueue.main.async {
-                        // Save Realm and .data file
-                        let dispatchRealm = try! Realm()
-                        // Clean up the prior on-disk payload when this dataHash already exists,
-                        // so the Realm record always points at a fresh, valid file.
-                        let stalePath = dispatchRealm
-                            .object(ofType: CPYClip.self, forPrimaryKey: clip.dataHash)?
-                            .dataPath
-                        dispatchRealm.transaction {
-                            dispatchRealm.add(clip, update: .all)
-                        }
-                        if let stalePath = stalePath, stalePath != savedPath {
-                            try? FileManager.default.removeItem(atPath: stalePath)
-                        }
-                    }
+                guard CPYUtilities.prepareSaveToPath(CPYUtilities.sqliteStorageFolder()) else { return }
+                do {
+                    try JSONEncoder().encode(data).write(to: .init(fileURLWithPath: savedPath), options: .atomic)
+                    SQLiteClipStore.shared.saveClip(clip)
+                } catch {
+                    lError(error)
+                    try? FileManager.default.removeItem(atPath: savedPath)
                 }
             }
         }
     }
 
     private func types(with pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-        let types = pasteboard.types?.filter { canSave(with: $0) } ?? []
+        let policy = PasteboardTypePolicy(storeTypes: storeTypes)
+        if policy.storesPlainTextOnly {
+            return pasteboard.string(forType: .string)?.trim.isNotEmpty == true ? [.string] : []
+        }
+
+        let types = pasteboard.types?.filter { policy.canSave($0) } ?? []
         var deduped = NSOrderedSet(array: types).array as? [NSPasteboard.PasteboardType] ?? []
         // PNG と TIFF は同一画像の二重表現で、Pasteboard に大半の画像で両方が入る。
         // 双方を取り込むと Pasteboard から NSImage を 2 回作り、tiffRepresentation を
@@ -204,13 +189,107 @@ extension ClipService {
         if deduped.contains(.png), let tiffIdx = deduped.firstIndex(of: .tiff) {
             deduped.remove(at: tiffIdx)
         }
+        if policy.canSaveSupplementalTypes {
+            deduped.append(contentsOf: policy.supplementalTypes(from: pasteboard, excluding: deduped))
+        }
         return deduped
     }
+}
 
-    private func canSave(with type: NSPasteboard.PasteboardType) -> Bool {
+private struct PasteboardTypePolicy {
+    private let storeTypes: [String: NSNumber]
+
+    init(storeTypes: [String: NSNumber]) {
+        self.storeTypes = storeTypes
+    }
+
+    var storesPlainTextOnly: Bool {
+        storeTypes[StoreType.string.rawValue]?.boolValue == true &&
+            !storeTypes.contains { key, value in
+                key != StoreType.string.rawValue && !Self.ignoredLegacyStoreTypes.contains(key) && value.boolValue
+            }
+    }
+
+    var canSaveSupplementalTypes: Bool {
+        Self.supplementalStoreTypes.contains {
+            storeTypes[$0.rawValue]?.boolValue == true
+        }
+    }
+
+    func canSave(_ type: NSPasteboard.PasteboardType) -> Bool {
+        if type == .png {
+            return storeTypes[StoreType.image.rawValue]?.boolValue == true
+        }
         let dictionary = CPYClipData.availableTypesDictionary
         guard let value = dictionary[type] else { return false }
         guard let number = storeTypes[value] else { return false }
         return number.boolValue
+    }
+
+    func supplementalTypes(from pasteboard: NSPasteboard,
+                           excluding savedTypes: [NSPasteboard.PasteboardType]) -> [NSPasteboard.PasteboardType] {
+        guard !savedTypes.isEmpty else { return [] }
+        let candidates = pasteboard.types?.filter {
+            !CPYClipData.availableTypes.contains($0) && !savedTypes.contains($0) && shouldPreserveSupplementalType($0)
+        } ?? []
+        return candidates.filter { type in
+            if let data = pasteboard.data(forType: type) {
+                return data.count <= Self.maxSupplementalPasteboardDataSize
+            }
+            return pasteboard.string(forType: type)?.isNotEmpty == true
+        }
+    }
+
+    private func shouldPreserveSupplementalType(_ type: NSPasteboard.PasteboardType) -> Bool {
+        let value = type.rawValue.lowercased()
+        return Self.supplementalPasteboardTypes.contains(type)
+            || value.contains("microsoft")
+            || value.contains("office")
+            || value.contains("excel")
+            || value.contains("word")
+            || value.contains("biff")
+            || value.contains("sylk")
+            || value.contains("spreadsheet")
+            || value.contains("worksheet")
+            || value.contains("tabular")
+            || value.contains("tab-separated")
+            || value.contains("csv")
+    }
+
+    private static let maxSupplementalPasteboardDataSize = 8 * 1024 * 1024
+    private static let ignoredLegacyStoreTypes: Set<String> = ["PNG"]
+    private static let supplementalStoreTypes: Set<StoreType> = [
+        .rtf,
+        .rtfd,
+        .pdf,
+        .image
+    ]
+
+    private static let supplementalPasteboardTypes: Set<NSPasteboard.PasteboardType> = [
+        NSPasteboard.PasteboardType(rawValue: "public.html"),
+        NSPasteboard.PasteboardType(rawValue: "HTML Format"),
+        NSPasteboard.PasteboardType(rawValue: "NSStringPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "NeXT plain ascii pasteboard type"),
+        NSPasteboard.PasteboardType(rawValue: "NSTabularTextPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "public.utf8-tab-separated-values-text"),
+        NSPasteboard.PasteboardType(rawValue: "public.tab-separated-values-text"),
+        NSPasteboard.PasteboardType(rawValue: "public.comma-separated-values-text"),
+        NSPasteboard.PasteboardType(rawValue: "com.microsoft.excel.xls"),
+        NSPasteboard.PasteboardType(rawValue: "com.microsoft.Excel.xls"),
+        NSPasteboard.PasteboardType(rawValue: "com.microsoft.Excel.Binary"),
+        NSPasteboard.PasteboardType(rawValue: "Biff8"),
+        NSPasteboard.PasteboardType(rawValue: "Biff5"),
+        NSPasteboard.PasteboardType(rawValue: "Biff4"),
+        NSPasteboard.PasteboardType(rawValue: "Biff3"),
+        NSPasteboard.PasteboardType(rawValue: "BIFF8"),
+        NSPasteboard.PasteboardType(rawValue: "BIFF5")
+    ]
+
+    private enum StoreType: String {
+        case string = "String"
+        case rtf = "RTF"
+        case rtfd = "RTFD"
+        case pdf = "PDF"
+        case image = "TIFF"
     }
 }

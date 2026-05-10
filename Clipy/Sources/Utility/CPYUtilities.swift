@@ -11,7 +11,6 @@
 //
 
 import Cocoa
-import RealmSwift
 
 final class CPYUtilities {
     static func registerUserDefaultKeys() {
@@ -71,6 +70,16 @@ final class CPYUtilities {
         let paths = NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)
         let basePath: String = paths.first ?? NSTemporaryDirectory()
         return (basePath as NSString).appendingPathComponent(Constants.Application.name)
+    }
+
+    static func sqliteApplicationSupportFolder() -> String {
+        let paths = NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)
+        let basePath: String = paths.first ?? NSTemporaryDirectory()
+        return (basePath as NSString).appendingPathComponent("com.yuukisgm.Clipy")
+    }
+
+    static func sqliteStorageFolder() -> String {
+        return (sqliteApplicationSupportFolder() as NSString).appendingPathComponent("storage")
     }
 
     static func prepareSaveToPath(_ path: String) -> Bool {

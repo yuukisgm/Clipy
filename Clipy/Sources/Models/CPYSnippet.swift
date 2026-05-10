@@ -11,30 +11,30 @@
 //
 
 import Cocoa
-import RealmSwift
 
-final class CPYSnippet: Object {
+final class CPYSnippet: NSObject {
 
     // MARK: - Properties
-    @objc dynamic var index = 0
-    @objc dynamic var enable = true
-    @objc dynamic var title = ""
-    @objc dynamic var content = ""
-    @objc dynamic var identifier = UUID().uuidString
-    let folders = LinkingObjects(fromType: CPYFolder.self, property: "snippets")
+    var index = 0
+    var enable = true
+    var title = ""
+    var content = ""
+    var identifier = UUID().uuidString
+    weak var folder: CPYFolder?
 
-    var folder: CPYFolder? {
-        return folders.first
+    var isInvalidated: Bool {
+        return false
     }
+}
 
-    // MARK: Primary Key
-    override static func primaryKey() -> String? {
-        return "identifier"
-    }
-
-    // MARK: - Ignore Properties
-    override static func ignoredProperties() -> [String] {
-        return ["folder"]
+extension CPYSnippet {
+    convenience init(index: Int, enable: Bool, title: String, content: String, identifier: String) {
+        self.init()
+        self.index = index
+        self.enable = enable
+        self.title = title
+        self.content = content
+        self.identifier = identifier
     }
 }
 
@@ -71,17 +71,13 @@ extension CPYSnippet: Codable {
 // MARK: - Add Snippet
 extension CPYSnippet {
     func merge() {
-        let realm = try! Realm()
-        let copySnippet = CPYSnippet(value: self)
-        realm.transaction { realm.add(copySnippet, update: .all) }
+        SQLiteClipStore.shared.upsertSnippet(self, folderIdentifier: folder?.identifier)
     }
 }
 
 // MARK: - Remove Snippet
 extension CPYSnippet {
     func remove() {
-        let realm = try! Realm()
-        guard let snippet = realm.object(ofType: CPYSnippet.self, forPrimaryKey: identifier) else { return }
-        snippet.realm?.transaction { snippet.realm?.delete(snippet) }
+        SQLiteClipStore.shared.deleteSnippet(identifier: identifier)
     }
 }

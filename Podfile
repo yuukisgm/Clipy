@@ -3,7 +3,6 @@ use_frameworks!
 inhibit_all_warnings!
 
 target 'Clipy' do
-  pod 'RealmSwift'
   pod 'RxCocoa'
   pod 'RxSwift'
   pod 'RxOptional'
