@@ -47,7 +47,9 @@ final class CPYClipData: NSObject, Codable {
     var identifier: String {
         // Sort token identifiers so the hash is independent of the
         // pasteboard type ordering (which varies per source app).
-        content.map { $0.identifier }.sorted().joined().md5
+        let stableIdentifiers = content.compactMap { $0.deduplicationIdentifier }
+        let identifiers = stableIdentifiers.isEmpty ? content.map { $0.identifier } : stableIdentifiers
+        return identifiers.sorted().joined().md5
     }
 
     var primaryType: NSPasteboard.PasteboardType? {
@@ -297,6 +299,15 @@ extension CPYClipData {
                 return "pdf" + value.md5
             case .raw(let type, let value):
                 return "raw" + type + value.md5
+            }
+        }
+
+        var deduplicationIdentifier: String? {
+            switch self {
+            case .raw:
+                return nil
+            default:
+                return identifier
             }
         }
     }
