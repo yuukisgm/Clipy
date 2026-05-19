@@ -1280,6 +1280,14 @@ final class ClipSearchPanelController: NSObject {
         if origin.y < screen.visibleFrame.minY {
             origin.y = screenPoint.y
         }
+        // 反転後やアンカーが画面上端寄りのとき、上端が visibleFrame をはみ出して
+        // メニュー上部が見切れる。上下両端をクランプして必ず画面内に収める。
+        if origin.y + panel.frame.height > screen.visibleFrame.maxY {
+            origin.y = screen.visibleFrame.maxY - panel.frame.height
+        }
+        if origin.y < screen.visibleFrame.minY {
+            origin.y = screen.visibleFrame.minY
+        }
 
         panel.setFrameOrigin(origin)
     }
