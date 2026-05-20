@@ -15,6 +15,12 @@ mkdir -p "$DIST"
 
 WHICH="${1:-both}"
 
+# 安定した署名 ID で署名する。アドホック署名だとビルド毎に指定要件(DR)が
+# 変わり、上書き更新時に「ログイン項目」の重複や「アクセシビリティ」権限の
+# 孤立が起きる。固定 ID で署名すれば DR が安定し、更新が同一アプリ扱いになる。
+# 環境変数 SIGN_IDENTITY で上書き可。空文字にするとアドホックにフォールバック。
+SIGN_IDENTITY="${SIGN_IDENTITY:-Clipy Signing}"
+
 build_arch() {
     local ARCH="$1"
     local LABEL="$2"
@@ -55,6 +61,16 @@ build_arch() {
     mkdir -p "$STAGE"
     cp -R "$APP" "$STAGE/Clipy.app"
     xattr -cr "$STAGE/Clipy.app"
+
+    if [ -n "$SIGN_IDENTITY" ]; then
+        echo "==> Signing with: $SIGN_IDENTITY"
+        codesign --force --deep --sign "$SIGN_IDENTITY" "$STAGE/Clipy.app"
+    else
+        echo "==> Ad-hoc signing (SIGN_IDENTITY empty)"
+        codesign --force --deep --sign - "$STAGE/Clipy.app"
+    fi
+    codesign -dvvv "$STAGE/Clipy.app" 2>&1 | grep -E "Authority=|TeamIdentifier=" | head -2 || true
+
     ln -s /Applications "$STAGE/Applications"
 
     hdiutil create -volname "Clipy ${VERSION} (${LABEL})" \
