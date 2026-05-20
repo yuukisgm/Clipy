@@ -56,3 +56,6 @@ fastlane/screenshots
 CLAUDE.md
 .claude/
 /dist
+
+# Michael's local AI協働プロトコル（リポジトリに上げない）
+AGENTS.md
