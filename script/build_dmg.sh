@@ -39,6 +39,7 @@ build_arch() {
         ONLY_ACTIVE_ARCH=NO \
         VALID_ARCHS="$ARCH" \
         EXCLUDED_ARCHS="" \
+        SWIFT_ENABLE_EXPLICIT_MODULES=NO \
         CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \

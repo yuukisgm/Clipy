@@ -165,6 +165,13 @@ extension PasteService {
 
         let vKeyCode = Sauce.shared.keyCode(for: .v)
         let bundleIdentifier = targetBundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if let app = Self.virtualMachineApp(bundleIdentifier: bundleIdentifier) {
+            // Parallels 27 forwards a synthesized Cmd+V to the guest as raw keys and drops
+            // Command about half the time ("v" is typed). Its own Edit > Paste menu item syncs
+            // the clipboard first and fails far less often (Parallels-side bug, ~1 in 8).
+            Self.pressPasteMenuItem(of: app, attempt: 1, fallbackKeyCode: vKeyCode)
+            return
+        }
         DispatchQueue.main.async {
             let source = CGEventSource(stateID: .combinedSessionState)
             // Disable local keyboard events while pasting
@@ -182,6 +189,62 @@ extension PasteService {
 
     private static func requiresClearingInternalClipboard(bundleIdentifier: String?) -> Bool {
         bundleIdentifier == "com.microsoft.Excel"
+    }
+
+    // MARK: - Virtual Machine
+    private static let virtualMachinePasteDelay: TimeInterval = 0.1
+    private static let virtualMachinePasteMaxAttempts = 10
+    private static let pasteMenuItemTitles: Set<String> = ["Paste", "貼り付け", "ペースト"]
+
+    private static func pressPasteMenuItem(of app: NSRunningApplication, attempt: Int, fallbackKeyCode: CGKeyCode) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + virtualMachinePasteDelay) {
+            let pressed = pressPasteMenuItem(of: app)
+            guard !pressed else { return }
+            guard attempt >= virtualMachinePasteMaxAttempts else {
+                pressPasteMenuItem(of: app, attempt: attempt + 1, fallbackKeyCode: fallbackKeyCode)
+                return
+            }
+            postPasteCommand(source: CGEventSource(stateID: .combinedSessionState), vKeyCode: fallbackKeyCode)
+        }
+    }
+
+    private static func virtualMachineApp(bundleIdentifier: String?) -> NSRunningApplication? {
+        // Parallels VM windows and Coherence apps are "com.parallels.winapp.<VM UUID>.*"
+        guard let bundleIdentifier = bundleIdentifier, bundleIdentifier.hasPrefix("com.parallels.winapp.") else { return nil }
+        if let front = NSWorkspace.shared.frontmostApplication, front.bundleIdentifier == bundleIdentifier {
+            return front
+        }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first
+    }
+
+    private static func pressPasteMenuItem(of app: NSRunningApplication) -> Bool {
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        guard let menuBar = axElement(appElement, kAXMenuBarAttribute) else { return false }
+        for menuBarItem in axChildren(menuBar) {
+            for menu in axChildren(menuBarItem) {
+                for item in axChildren(menu) {
+                    var titleRef: CFTypeRef?
+                    guard AXUIElementCopyAttributeValue(item, kAXTitleAttribute as CFString, &titleRef) == .success,
+                          let title = titleRef as? String,
+                          pasteMenuItemTitles.contains(title) else { continue }
+                    return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+                }
+            }
+        }
+        return false
+    }
+
+    private static func axElement(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success,
+              let value = ref, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return (value as! AXUIElement) // swiftlint:disable:this force_cast
+    }
+
+    private static func axChildren(_ element: AXUIElement) -> [AXUIElement] {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &ref) == .success else { return [] }
+        return ref as? [AXUIElement] ?? []
     }
 
     private static func postEscape(source: CGEventSource?) {

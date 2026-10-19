@@ -1,4 +1,4 @@
-platform :osx, '11.0'
+platform :osx, '12.0'
 use_frameworks!
 inhibit_all_warnings!
 
@@ -28,9 +28,9 @@ post_install do |installer|
 
       version = config.build_settings['MACOSX_DEPLOYMENT_TARGET']
       if version.nil?
-        config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '11.0'
-      elsif version.split(".").first.to_f < 11
-        config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '11.0'
+        config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '12.0'
+      elsif version.split(".").first.to_f < 12
+        config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '12.0'
       end
 
       xcconfig_path = config.base_configuration_reference.real_path
