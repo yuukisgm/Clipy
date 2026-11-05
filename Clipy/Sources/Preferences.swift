@@ -46,6 +46,7 @@ struct Preferences {
     }
 
     struct Beta {
+        static let pastePlainTextByDefault = "kCPYBetaPastePlainTextByDefault"
         static let pastePlainText = "kCPYBetaPastePlainText"
         static let pastePlainTextModifier = "kCPYBetaPastePlainTextModifier"
         static let deleteHistory = "kCPYBetaDeleteHistory"

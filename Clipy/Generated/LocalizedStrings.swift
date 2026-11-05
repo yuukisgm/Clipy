@@ -42,6 +42,10 @@ internal enum L10n {
   internal static let menuBarIconIsNowHidden = L10n.tr("Localizable", "Menu bar icon is now hidden", fallback: "Menu bar icon is now hidden")
   /// Open System Preferences
   internal static let openSystemPreferences = L10n.tr("Localizable", "Open System Preferences", fallback: "Open System Preferences")
+  /// Paste as Plain Text
+  internal static let pasteAsPlainText = L10n.tr("Localizable", "Paste as Plain Text", fallback: "Paste as Plain Text")
+  /// Paste as Rich Text
+  internal static let pasteAsRichText = L10n.tr("Localizable", "Paste as Rich Text", fallback: "Paste as Rich Text")
   /// Please allow Accessibility.
   internal static let pleaseAllowAccessibility = L10n.tr("Localizable", "Please allow Accessibility", fallback: "Please allow Accessibility.")
   /// Please fill in the contents of the snippet

@@ -62,8 +62,10 @@ extension PasteService {
             let isPastePlainText = self.isPastePlainText(flags: flags)
             let isPasteAndDeleteHistory = self.isPasteAndDeleteHistory(flags: flags)
             let isDeleteHistory = self.isDeleteHistory(flags: flags)
+            // The plain-text modifier inverts the default paste format.
+            let pastesPlainText = AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pastePlainTextByDefault) != isPastePlainText
             guard isPastePlainText || isPasteAndDeleteHistory || isDeleteHistory else {
-                copyToPasteboard(with: clipData)
+                copyToPasteboard(with: clipData, asPlainText: pastesPlainText)
                 AppEnvironment.current.clipService.reorderAfterPasting(clip)
                 paste(targetBundleIdentifier: targetBundleIdentifier)
                 return
@@ -75,11 +77,11 @@ extension PasteService {
             }
             // Paste history
             if isPastePlainText {
-                copyToPasteboard(with: plainText(from: clipData))
+                copyToPasteboard(with: clipData, asPlainText: pastesPlainText)
                 AppEnvironment.current.clipService.reorderAfterPasting(clip)
                 paste(targetBundleIdentifier: targetBundleIdentifier)
             } else if isPasteAndDeleteHistory {
-                copyToPasteboard(with: clipData)
+                copyToPasteboard(with: clipData, asPlainText: pastesPlainText)
                 paste(targetBundleIdentifier: targetBundleIdentifier)
             }
             // Delete clip
@@ -106,6 +108,15 @@ extension PasteService {
             copyToPasteboard(with: try SQLiteClipStore.shared.decodedClipData(for: clip))
         } catch {
             lError(error)
+        }
+    }
+
+    private func copyToPasteboard(with clipData: CPYClipData, asPlainText: Bool) {
+        // Clips without text (e.g. images) keep their original data.
+        if asPlainText, let text = plainText(from: clipData) {
+            copyToPasteboard(with: text)
+        } else {
+            copyToPasteboard(with: clipData)
         }
     }
 

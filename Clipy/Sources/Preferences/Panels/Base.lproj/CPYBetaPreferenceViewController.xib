@@ -9,15 +9,33 @@
         <customObject id="-2" userLabel="File's Owner" customClass="CPYBetaPreferenceViewController" customModule="Clipy" customModuleProvider="target">
             <connections>
                 <outlet property="versionTF" destination="y6D-yr-HCq" id="xMe-rd-2Fp"/>
+                <outlet property="pastePlainTextByDefaultSwitch" destination="pTd-Sw-4Tg" id="pTd-Ot-6Sw"/>
+                <outlet property="pastePlainTextButton" destination="aNl-8j-KxN" id="pTd-Ot-7Bt"/>
                 <outlet property="view" destination="Hz6-mo-xeY" id="0bl-1N-x8E"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <customView id="Hz6-mo-xeY">
-            <rect key="frame" x="0.0" y="0.0" width="480" height="287"/>
+            <rect key="frame" x="0.0" y="0.0" width="480" height="318"/>
             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
             <subviews>
+                <textField verticalHuggingPriority="750" fixedFrame="YES" allowsCharacterPickerTouchBarItem="YES" translatesAutoresizingMaskIntoConstraints="NO" id="pTd-Df-1Ch">
+                    <rect key="frame" x="59" y="228" width="310" height="17"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" allowsUndo="NO" sendsActionOnEndEditing="YES" title="Paste as Plain Text by Default" id="pTd-Cl-2Ck">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <switch horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" baseWritingDirection="leftToRight" alignment="left" translatesAutoresizingMaskIntoConstraints="NO" id="pTd-Sw-4Tg">
+                    <rect key="frame" x="380" y="223" width="42" height="25"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <connections>
+                        <action selector="togglePastePlainTextByDefault:" target="-2" id="pTd-Ac-5Sw"/>
+                    </connections>
+                </switch>
                 <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="aNl-8j-KxN">
                     <rect key="frame" x="59" y="196" width="237" height="18"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
@@ -30,7 +48,7 @@
                     </connections>
                 </button>
                 <textField verticalHuggingPriority="750" fixedFrame="YES" allowsCharacterPickerTouchBarItem="YES" preferredMaxLayoutWidth="206" translatesAutoresizingMaskIntoConstraints="NO" id="3h0-VG-ZCf">
-                    <rect key="frame" x="59" y="220" width="210" height="17"/>
+                    <rect key="frame" x="59" y="251" width="210" height="17"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" allowsUndo="NO" sendsActionOnEndEditing="YES" title="Action" id="6RM-Ow-USQ">
                         <font key="font" metaFont="system"/>

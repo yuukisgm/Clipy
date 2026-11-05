@@ -53,6 +53,7 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: 86400), forKey: Preferences.Update.checkInterval)
 
         /* Beta */
+        defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.pastePlainTextByDefault)
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Beta.pastePlainText)
         defaultValues.updateValue(NSNumber(value: 0), forKey: Preferences.Beta.pastePlainTextModifier)
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Beta.deleteHistory)
