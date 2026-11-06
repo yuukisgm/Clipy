@@ -17,13 +17,25 @@ import RxCocoa
 final class ExcludeAppService {
 
     // MARK: - Properties
-    fileprivate(set) var applications = [CPYAppInfo]()
+    // Changed from Preferences on the main thread and read by the pasteboard polling thread.
+    private let applicationsLock = NSLock()
+    private var storedApplications: [CPYAppInfo]
+    fileprivate(set) var applications: [CPYAppInfo] {
+        get {
+            applicationsLock.lock(); defer { applicationsLock.unlock() }
+            return storedApplications
+        }
+        set {
+            applicationsLock.lock(); defer { applicationsLock.unlock() }
+            storedApplications = newValue
+        }
+    }
     fileprivate var frontApplication = BehaviorRelay<NSRunningApplication?>(value: nil)
     fileprivate var disposeBag = DisposeBag()
 
     // MARK: - Initialize
     init(applications: [CPYAppInfo]) {
-        self.applications = applications
+        self.storedApplications = applications
     }
 
 }

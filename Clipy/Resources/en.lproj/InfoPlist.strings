@@ -1,0 +1,5 @@
+"NSDownloadsFolderUsageDescription" = "Clipy needs access to paste files you copied from this location.";
+"NSDocumentsFolderUsageDescription" = "Clipy needs access to paste files you copied from this location.";
+"NSDesktopFolderUsageDescription" = "Clipy needs access to paste files you copied from this location.";
+"NSNetworkVolumesUsageDescription" = "Clipy needs access to paste files you copied from this location.";
+"NSRemovableVolumesUsageDescription" = "Clipy needs access to paste files you copied from this location.";

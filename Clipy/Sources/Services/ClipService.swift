@@ -20,7 +20,8 @@ final class ClipService {
 
     // MARK: - Properties
     fileprivate var cachedChangeCount = BehaviorRelay<Int>(value: 0)
-    fileprivate var storeTypes = [String: NSNumber]()
+    // Written on the main thread and read by the pasteboard polling thread.
+    fileprivate let storeTypes = BehaviorRelay<[String: NSNumber]>(value: [:])
     fileprivate let scheduler = SerialDispatchQueueScheduler(qos: .userInteractive)
     fileprivate var disposeBag = DisposeBag()
 
@@ -49,7 +50,7 @@ final class ClipService {
             .filterNil()
             .asDriver(onErrorDriveWith: .empty())
             .drive(onNext: { [weak self] in
-                self?.storeTypes = $0
+                self?.storeTypes.accept($0)
                 SQLiteClipStore.shared.purgeSessionCaches()
             })
             .disposed(by: disposeBag)
@@ -88,7 +89,7 @@ extension ClipService {
 
     fileprivate func create() {
         // Store types
-        if !storeTypes.values.contains(NSNumber(value: true)) { return }
+        if !storeTypes.value.values.contains(NSNumber(value: true)) { return }
         // Pasteboard types
         let pasteboard = NSPasteboard.general
         // Passwords and other content marked as concealed or transient
@@ -158,7 +159,7 @@ extension ClipService {
     }
 
     private func types(with pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-        let policy = PasteboardTypePolicy(storeTypes: storeTypes)
+        let policy = PasteboardTypePolicy(storeTypes: storeTypes.value)
         if policy.storesPlainTextOnly {
             return pasteboard.string(forType: .string)?.trim.isNotEmpty == true ? [.string] : []
         }

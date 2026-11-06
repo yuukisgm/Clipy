@@ -164,9 +164,21 @@ extension CPYSnippetsEditorWindowController {
             let decoder = JSONDecoder()
             let importFolders = try decoder.decode([CPYFolder].self, from: data)
             let baseIndex = (SQLiteClipStore.shared.lastFolderIndex() ?? -1) + 1
+            // Imported items get new identifiers on a clash so they never overwrite existing ones.
+            let existingFolders = SQLiteClipStore.shared.folders()
+            var folderIdentifiers = Set(existingFolders.map(\.identifier))
+            var snippetIdentifiers = Set(existingFolders.flatMap { $0.snippets.map(\.identifier) })
             for (offset, folder) in importFolders.enumerated() {
                 folder.index = baseIndex + offset
-                folder.snippets.forEach { $0.folder = folder }
+                if !folderIdentifiers.insert(folder.identifier).inserted {
+                    folder.identifier = UUID().uuidString
+                }
+                folder.snippets.forEach { snippet in
+                    snippet.folder = folder
+                    if !snippetIdentifiers.insert(snippet.identifier).inserted {
+                        snippet.identifier = UUID().uuidString
+                    }
+                }
                 folder.merge()
             }
             folders = SQLiteClipStore.shared.folders().map { $0.deepCopy() }

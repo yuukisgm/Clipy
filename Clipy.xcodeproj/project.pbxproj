@@ -30,6 +30,7 @@
 		FA1189331E4CD58C00244F12 /* ExcludeAppService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1189321E4CD58C00244F12 /* ExcludeAppService.swift */; };
 		FA1DB4901DDCA5D9007F95C8 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA1DB48F1DDCA5D9007F95C8 /* Images.xcassets */; };
 		FA1DB4981DDCB2CB007F95C8 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = FA1DB4961DDCB2CB007F95C8 /* Localizable.strings */; };
+		C11F0A012E00000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C11F0A012E00000000000002 /* InfoPlist.strings */; };
 		FA1DB49F1DDCB417007F95C8 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA1DB49E1DDCB417007F95C8 /* MainMenu.xib */; };
 		FA1DB4A21DDCB433007F95C8 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1DB4A01DDCB433007F95C8 /* AppDelegate.swift */; };
 		FA1DB4A31DDCB433007F95C8 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1DB4A11DDCB433007F95C8 /* Constants.swift */; };
@@ -94,6 +95,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C11F0A012E00000000000003 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		C11F0A012E00000000000004 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		04894A19C249402385E98164 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/CPYExcludeAppPreferenceViewController.strings; sourceTree = "<group>"; };
 		04A7D4C1E33A4C69A0EA2B35 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/CPYMenuPreferenceViewController.strings; sourceTree = "<group>"; };
 		09671B6825CE4AF0B041B53A /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -276,6 +279,7 @@
 			isa = PBXGroup;
 			children = (
 				FA1DB4961DDCB2CB007F95C8 /* Localizable.strings */,
+				C11F0A012E00000000000002 /* InfoPlist.strings */,
 				FA1DB48F1DDCA5D9007F95C8 /* Images.xcassets */,
 			);
 			path = Resources;
@@ -590,6 +594,7 @@
 				FA1DB5191DDCB4C0007F95C8 /* CPYBetaPreferenceViewController.xib in Resources */,
 				FA6DD5151C7DEDB600317E73 /* BuildFile in Resources */,
 				FA1DB4981DDCB2CB007F95C8 /* Localizable.strings in Resources */,
+				C11F0A012E00000000000001 /* InfoPlist.strings in Resources */,
 				FA1DB49F1DDCB417007F95C8 /* MainMenu.xib in Resources */,
 				952E3FE62ACE57C60005DDC2 /* CPYSnippetsEditorWindowController.xib in Resources */,
 			);
@@ -748,6 +753,15 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
+		C11F0A012E00000000000002 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				C11F0A012E00000000000003 /* en */,
+				C11F0A012E00000000000004 /* ja */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
 		ED674CAF825F4FB38C5A382A /* CPYSnippetsEditorWindowController.xib */ = {
 			isa = PBXVariantGroup;
 			children = (

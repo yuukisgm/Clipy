@@ -891,7 +891,12 @@ final class ClipSearchPanelController: NSObject {
         panel.orderOut(nil)
         searchField.stringValue = ""
         if restoreFocus {
-            lastActiveApp?.activate(options: [])
+            // Only when no other app took focus in the meantime (Cmd+Tab, Dock click, ...).
+            let target = lastActiveApp
+            DispatchQueue.main.async {
+                guard NSApp.isActive else { return }
+                target?.activate(options: [])
+            }
         }
     }
 
@@ -1570,7 +1575,8 @@ final class ClipSearchPanelController: NSObject {
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
         switch event.keyCode {
-        case 53: // Escape
+        case 53: // Escape — cancels the IME composition first
+            if hasMarkedText() { return event }
             close()
             return nil
         case 36, 76: // Return, numpad Enter
@@ -1582,6 +1588,7 @@ final class ClipSearchPanelController: NSObject {
             }
             return nil
         case 123: // Left arrow
+            guard !hasMarkedText() else { return event }
             // folder パネルが開いている時、戻る方向のキーで main に戻す。
             // マウスホバーで folder を開いた場合 activeList は .main のままだが、
             // ユーザーから見れば「サブメニューが見えている」状態なので戻れて当然。
@@ -1915,6 +1922,7 @@ final class ClipSearchPanelController: NSObject {
         let clip = tooltipClip(for: tableView, row: row)
         let defaults = AppEnvironment.current.defaults
         let isColor = clip?.isColorCode == true &&
+                      clip?.title.firstMatch(pattern: CPYClipData.colorCodePattern) != nil &&
                       defaults.bool(forKey: Preferences.Menu.showColorPreviewInTheMenu)
         let isFileURL = clip?.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue
         let hasImage = !isFileURL &&
@@ -1944,7 +1952,7 @@ final class ClipSearchPanelController: NSObject {
         }
 
         if isColor, let title = clip?.title,
-           let hex = title.firstMatch(pattern: "^(?:0x|#)?([0-9a-fA-F]{6,8})$"),
+           let hex = title.firstMatch(pattern: CPYClipData.colorCodePattern),
            let color = NSColor(hexString: hex) {
             tooltipColorSwatch.layer?.backgroundColor = color.cgColor
         }

@@ -1,0 +1,5 @@
+"NSDownloadsFolderUsageDescription" = "この場所からコピーしたファイルを貼り付けるために Clipy がアクセスします。";
+"NSDocumentsFolderUsageDescription" = "この場所からコピーしたファイルを貼り付けるために Clipy がアクセスします。";
+"NSDesktopFolderUsageDescription" = "この場所からコピーしたファイルを貼り付けるために Clipy がアクセスします。";
+"NSNetworkVolumesUsageDescription" = "この場所からコピーしたファイルを貼り付けるために Clipy がアクセスします。";
+"NSRemovableVolumesUsageDescription" = "この場所からコピーしたファイルを貼り付けるために Clipy がアクセスします。";

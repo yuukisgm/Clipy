@@ -17,7 +17,6 @@ import RxSwift
 import RxOptional
 
 final class MenuManager: NSObject {
-    fileprivate var snippetMenu: NSMenu?
     fileprivate lazy var configMenu: NSMenu = {
         let v = NSMenu(title: Constants.Menu.config)
         v.addItem(.init(title: L10n.clearHistory, action: #selector(AppDelegate.clearAllHistory)))
@@ -31,14 +30,8 @@ final class MenuManager: NSObject {
 
     // StatusMenu
     fileprivate var statusItem: NSStatusItem?
-    // Icon Cache
-    fileprivate let folderIcon = Asset.Common.iconFolder.image
-    fileprivate let snippetIcon = Asset.Common.iconText.image
     // Other
     fileprivate let disposeBag = DisposeBag()
-    fileprivate let notificationCenter = NotificationCenter.default
-    fileprivate let kMaxKeyEquivalents = 10
-    fileprivate var snippetChangeObserver: Any?
 
     // MARK: - Enum Values
     // raw values match the menu item tags in CPYGeneralPreferenceViewController.xib
@@ -48,15 +41,6 @@ final class MenuManager: NSObject {
         case none = 0
         case black = 1
         case white = 2
-    }
-
-    // MARK: - Initialize
-    override init() {
-        super.init()
-        folderIcon.isTemplate = true
-        folderIcon.size = NSSize(width: 15, height: 13)
-        snippetIcon.isTemplate = true
-        snippetIcon.size = NSSize(width: 12, height: 13)
     }
 
     func setup() {
@@ -79,17 +63,6 @@ extension MenuManager {
             let screenPt = caretScreenPoint() ?? NSEvent.mouseLocation
             ClipSearchPanelController.shared.showSnippets(at: screenPt)
         }
-    }
-
-    /// Returns the popup anchor in coordinates relative to the status item
-    /// button's window — what NSMenu.popUp(positioning:at:in:) expects when the
-    /// `in:` view is the status item button. Tries caret → mouse → button.
-    fileprivate func popUpLocation() -> CGPoint {
-        guard let buttonOrigin = statusItem?.button?.window?.frame.origin else { return .zero }
-        let screenPoint = caretScreenPoint() ?? NSEvent.mouseLocation
-        // Cocoa screen coordinates have y growing upward; the status button
-        // window's local space has y growing downward from its origin.
-        return NSPoint(x: screenPoint.x - buttonOrigin.x, y: buttonOrigin.y - screenPoint.y)
     }
 
     /// Asks AX for the focused text element of the frontmost app and returns
@@ -170,15 +143,6 @@ extension MenuManager {
         return CGRect(origin: pos, size: size)
     }
 
-    fileprivate func applyAppearance(_ appearance: NSAppearance?, to menu: NSMenu) {
-        menu.appearance = appearance
-        menu.items.forEach { item in
-            if let submenu = item.submenu {
-                applyAppearance(appearance, to: submenu)
-            }
-        }
-    }
-
     func popUpSnippetFolder(_ folder: CPYFolder) {
         let screenPt = caretScreenPoint() ?? NSEvent.mouseLocation
         ClipSearchPanelController.shared.showSnippetFolder(folder, at: screenPt)
@@ -188,13 +152,6 @@ extension MenuManager {
 // MARK: - Binding
 private extension MenuManager {
     func bind() {
-        snippetChangeObserver = notificationCenter.addObserver(
-            forName: SQLiteClipStore.snippetsDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.createClipMenu()
-        }
         // Menu icon
         AppEnvironment.current.defaults.rx.observe(Int.self, Preferences.General.statusTypeItem, retainSelf: false)
             .filterNil()
@@ -204,125 +161,6 @@ private extension MenuManager {
             })
             .disposed(by: disposeBag)
 
-        // Edit snippets
-        notificationCenter.rx.notification(Notification.Name(rawValue: Constants.Notification.closeSnippetEditor))
-            .asDriver(onErrorDriveWith: .empty())
-            .drive(onNext: { [weak self] _ in
-                self?.createClipMenu()
-            })
-            .disposed(by: disposeBag)
-        // Observe change preference settings
-        let defaults = AppEnvironment.current.defaults
-        Observable.merge(
-            defaults.rx.observe(Int.self, Preferences.General.reorderClipsAfterPasting, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.General.maxShowHistorySize, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.General.maxHistorySize, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.General.maxWidthOfMenuItem, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.General.menuFontSize, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Bool.self, Preferences.Menu.showIconInTheMenu, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.Menu.numberOfItemsPlaceInline, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.Menu.numberOfItemsPlaceInsideFolder, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Bool.self, Preferences.Menu.menuItemsAreMarkedWithNumbers, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Bool.self, Preferences.Menu.showToolTipOnMenuItem, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Bool.self, Preferences.Menu.addNumericKeyEquivalents, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged(),
-            defaults.rx.observe(Int.self, Preferences.Menu.maxLengthOfToolTip, options: [.new], retainSelf: false).filterNil().mapVoidDistinctUntilChanged())
-            .skip(1)
-            .throttle(.seconds(1), scheduler: MainScheduler.instance)
-            .asDriver(onErrorDriveWith: .empty())
-            .drive(onNext: { [weak self] in
-                self?.createClipMenu()
-            })
-            .disposed(by: disposeBag)
-    }
-}
-
-// MARK: - Menus
-private extension MenuManager {
-     func createClipMenu() {
-        snippetMenu = NSMenu(title: Constants.Menu.snippet)
-
-        addSnippetItems(snippetMenu!, separateMenu: false)
-    }
-
-    func makeSubmenuItem(_ count: Int, start: Int, end: Int, numberOfItems: Int) -> NSMenuItem {
-        var count = count
-        if start == 0 {
-            count -= 1
-        }
-        var lastNumber = count + numberOfItems
-        if end < lastNumber {
-            lastNumber = end
-        }
-        let menuItemTitle = "\(count + 1) - \(lastNumber)"
-        return makeSubmenuItem(menuItemTitle)
-    }
-
-    func makeSubmenuItem(_ title: String) -> NSMenuItem {
-        let subMenu = NSMenu(title: "")
-        let subMenuItem = NSMenuItem(title: title, action: nil)
-        subMenuItem.submenu = subMenu
-        subMenuItem.image = (AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.showIconInTheMenu)) ? folderIcon : nil
-        return subMenuItem
-    }
-
-}
-
-// MARK: - Snippets
-private extension MenuManager {
-    func addSnippetItems(_ menu: NSMenu, separateMenu: Bool) {
-        let folderResults = SQLiteClipStore.shared.folders()
-        guard !folderResults.isEmpty else { return }
-        if separateMenu {
-            menu.addItem(NSMenuItem.separator())
-        }
-
-        // Snippet title
-        let labelItem = NSMenuItem(title: L10n.snippet, action: nil)
-        labelItem.isEnabled = false
-        menu.addItem(labelItem)
-
-        var subMenuIndex = menu.numberOfItems - 1
-        let firstIndex = firstIndexOfMenuItems()
-
-        folderResults
-            .filter { $0.enable }
-            .forEach { folder in
-                let folderTitle = folder.title
-                let folderMenuItem = makeSubmenuItem(folderTitle)
-                menu.addItem(folderMenuItem)
-                subMenuIndex += 1
-
-                var i = firstIndex
-                folder.snippets
-                    .sorted { $0.index < $1.index }
-                    .filter { $0.enable }
-                    .forEach { snippet in
-                        let subMenuItem = makeSnippetMenuItem(snippet, listNumber: i)
-                        if let subMenu = folderMenuItem.submenu {
-                            subMenu.addItem(subMenuItem)
-                            i += 1
-                        }
-                    }
-            }
-    }
-
-    func makeSnippetMenuItem(_ snippet: CPYSnippet, listNumber: Int) -> NSMenuItem {
-        let defaults = AppEnvironment.current.defaults
-        let isMarkWithNumber = defaults.bool(forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers)
-        let isShowIcon = defaults.bool(forKey: Preferences.Menu.showIconInTheMenu)
-        let maxWidth = CGFloat(defaults.float(forKey: Preferences.General.maxWidthOfMenuItem))
-        let fontSize = CGFloat(defaults.float(forKey: Preferences.General.menuFontSize))
-
-        let prefix = isMarkWithNumber ? "\(listNumber). " : ""
-        let attributedTitle = snippet.title.trimForMenuItem(with: prefix, maxWidth: maxWidth, fontSize: fontSize)
-
-        let menuItem = NSMenuItem(title: attributedTitle.string, action: #selector(AppDelegate.selectSnippetMenuItem(_:)), keyEquivalent: "")
-        menuItem.attributedTitle = attributedTitle
-        menuItem.representedObject = snippet.identifier
-        menuItem.toolTip = snippet.content
-        menuItem.image = isShowIcon ? snippetIcon : nil
-
-        return menuItem
     }
 }
 
@@ -377,12 +215,5 @@ private extension MenuManager {
                 defaults.set(true, forKey: Self.hideAlertSuppressKey)
             }
         }
-    }
-}
-
-// MARK: - Settings
-private extension MenuManager {
-    func firstIndexOfMenuItems() -> NSInteger {
-        return  1
     }
 }

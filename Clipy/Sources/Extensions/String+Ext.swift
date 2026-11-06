@@ -63,7 +63,7 @@ extension String {
             let regex = try NSRegularExpression(pattern: reg, options: [.caseInsensitive])
             let range = regex.firstMatch(in: self,
                                          options: [],
-                                         range: .init(location: 0, length: count))?.range
+                                         range: .init(location: 0, length: utf16.count))?.range
             return range.flatMap { Range($0, in: self) }
         } catch {
             lError(error)
@@ -74,7 +74,7 @@ extension String {
     func replace(pattern: String, options: NSRegularExpression.Options = [], withTemplate templ: String) -> String {
         do {
             let regex = try NSRegularExpression(pattern: pattern, options: options)
-            return regex.stringByReplacingMatches(in: self, range: NSRange(location: 0, length: count), withTemplate: templ)
+            return regex.stringByReplacingMatches(in: self, range: NSRange(location: 0, length: utf16.count), withTemplate: templ)
         } catch {
             lError(error)
             return self
@@ -88,7 +88,7 @@ extension String {
             let regex = try NSRegularExpression(pattern: pattern, options: options)
             let range = regex.firstMatch(in: self,
                                          options: matchingOptions,
-                                         range: .init(location: 0, length: count))?.range
+                                         range: .init(location: 0, length: utf16.count))?.range
             return range.flatMap { rg in
                 return (self as NSString).substring(with: rg)
             }
@@ -106,7 +106,7 @@ extension String {
             guard
                 let result = regex.firstMatch(in: self,
                                               options: matchingOptions,
-                                              range: .init(location: 0, length: count))
+                                              range: .init(location: 0, length: utf16.count))
             else { return nil }
             return (1..<result.numberOfRanges).lazy.compactMap { i in
                 let range = result.range(at: i)

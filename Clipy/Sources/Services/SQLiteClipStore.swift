@@ -56,7 +56,7 @@ extension SQLiteClipStore {
             let oldPath = String.scalar(db,
                                         sql: "SELECT data_path FROM clips WHERE data_hash = ?",
                                         bindings: [.text(clip.dataHash)])
-            execute("""
+            let saved = execute("""
                 INSERT INTO clips(data_hash, data_path, title, primary_type, update_time, thumbnail_path, is_color_code)
                 VALUES(?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(data_hash) DO UPDATE SET
@@ -74,7 +74,7 @@ extension SQLiteClipStore {
                  .int(clip.updateTime),
                  .text(clip.thumbnailPath),
                  .int(clip.isColorCode ? 1 : 0)])
-            if let oldPath = oldPath, oldPath != clip.dataPath {
+            if saved, let oldPath = oldPath, oldPath != clip.dataPath {
                 try? FileManager.default.removeItem(atPath: oldPath)
             }
             trimClipDataCache(removedHash: clip.dataHash)
@@ -218,24 +218,29 @@ extension SQLiteClipStore {
     }
 
     func decodedClipData(for clip: CPYClip) throws -> CPYClipData {
-        return try queue.sync {
+        let lookup = queue.sync { () -> (cached: CPYClipData?, path: String) in
             if let cached = clipDataCache[clip.dataHash] {
                 touchClipDataCache(clip.dataHash)
-                return cached
+                return (cached, clip.dataPath)
             }
             let path = String.scalar(db,
                                      sql: "SELECT data_path FROM clips WHERE data_hash = ?",
                                      bindings: [.text(clip.dataHash)]) ?? clip.dataPath
-            let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            let decoded = try JSONDecoder().decode(CPYClipData.self, from: data)
+            return (nil, path)
+        }
+        if let cached = lookup.cached { return cached }
+        // Read and decode outside the queue so a large clip doesn't hold up saving and other store calls.
+        let data = try Data(contentsOf: URL(fileURLWithPath: lookup.path))
+        let decoded = try JSONDecoder().decode(CPYClipData.self, from: data)
+        queue.sync {
             clipDataCache[clip.dataHash] = decoded
-            clipDataCacheOrder.append(clip.dataHash)
+            touchClipDataCache(clip.dataHash)
             while clipDataCacheOrder.count > clipDataCacheLimit {
                 let evicted = clipDataCacheOrder.removeFirst()
                 clipDataCache.removeValue(forKey: evicted)
             }
-            return decoded
         }
+        return decoded
     }
 }
 
@@ -454,17 +459,22 @@ private extension SQLiteClipStore {
         }
     }
 
-    func execute(_ sql: String, _ bindings: [Binding]) {
+    @discardableResult
+    func execute(_ sql: String, _ bindings: [Binding]) -> Bool {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
             lError("SQLite prepare failed:", sql, lastError)
-            return
+            return false
         }
         defer { sqlite3_finalize(statement) }
         bind(bindings, to: statement)
-        if sqlite3_step(statement) != SQLITE_DONE {
+        // Some PRAGMAs (journal_mode) report their value as a row.
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_DONE || result == SQLITE_ROW else {
             lError("SQLite execute failed:", sql, lastError)
+            return false
         }
+        return true
     }
 
     func queryClips(_ sql: String, _ bindings: [Binding]) -> [CPYClip] {

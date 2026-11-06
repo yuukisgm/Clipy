@@ -32,7 +32,7 @@ final class CPYClipData: NSObject, Codable {
     }
 
     var clipTitle: String? {
-        return content.lazy.compactMap { type in
+        let title = content.lazy.compactMap { type -> String? in
             switch type {
             case .string(let value), .URL(let value):
                 return value
@@ -42,6 +42,14 @@ final class CPYClipData: NSObject, Codable {
                 return nil
             }
         }.first
+        let additionalFileCount = content.lazy.compactMap { type -> Int? in
+            if case .additionalFileURLs(let values) = type { return values.count }
+            return nil
+        }.first
+        if let title = title, let additionalFileCount = additionalFileCount {
+            return "\(title) +\(additionalFileCount)"
+        }
+        return title
     }
 
     var identifier: String {
@@ -94,9 +102,12 @@ final class CPYClipData: NSObject, Codable {
         return content.count > 0
     }
 
+    // The prefix is required so that plain numbers such as 123456 aren't treated as colors.
+    static let colorCodePattern = "^(?:0x|#)([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+
     var colorCode: NSColor? {
         guard
-            let hex = stringValue?.firstMatch(pattern: "^(?:0x|#)?([0-9a-fA-F]{6,8})$") else { return nil }
+            let hex = stringValue?.firstMatch(pattern: Self.colorCodePattern) else { return nil }
         return NSColor(hexString: hex)
     }
 
@@ -358,9 +369,8 @@ struct Image: Codable {
 
     var image: NSImage? {
         get { return content.flatMap(NSImage.init(data:)) }
-        // factor は 0.0〜1.0。以前は 7 を渡しており実質 1.0（無圧縮 TIFF）扱いで
-        // サムネイル .data ファイルが過剰に肥大化していた。0.7 で実質 JPEG 圧縮を効かせる。
-        set { content = newValue?.tiffRepresentation(using: .jpeg, factor: 0.7) }
+        // TIFF への JPEG 指定は無視されて無圧縮になる（実測）。可逆の LZW で保存する。
+        set { content = newValue?.tiffRepresentation(using: .lzw, factor: 0) }
     }
 }
 

@@ -19,6 +19,8 @@ final class DataCleanService {
     // MARK: - Properties
     fileprivate var disposeBag = DisposeBag()
     fileprivate let scheduler = SerialDispatchQueueScheduler(qos: .utility)
+    // A new clip's file exists shortly before its database row, so recent files aren't orphans yet.
+    private static let orphanGracePeriod: TimeInterval = 5 * 60
 
     // MARK: - Monitoring
     func startMonitoring() {
@@ -51,6 +53,10 @@ final class DataCleanService {
         Set(paths)
             .subtracting(allClipPaths)
             .map { storageFolder + "/" + "\($0)" }
+            .filter { path in
+                let modified = (try? fileManager.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+                return Date().timeIntervalSince(modified ?? .distantPast) > Self.orphanGracePeriod
+            }
             .forEach { CPYUtilities.deleteData(at: $0) }
     }
 }

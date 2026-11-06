@@ -25,6 +25,6 @@ extension NSColor {
         self.init(red: CGFloat( (hexVal >> (16 + alphaHex)) & 0xFF ) / 255.0,
                   green: CGFloat( (hexVal >> (8 + alphaHex)) & 0xFF ) / 255.0,
                   blue: CGFloat( (hexVal >> (0 + alphaHex)) & 0xFF ) / 255.0,
-                  alpha: containAlpha ? CGFloat( hexVal & 0xFF ) : alpha)
+                  alpha: containAlpha ? CGFloat( hexVal & 0xFF ) / 255.0 : alpha)
     }
 }

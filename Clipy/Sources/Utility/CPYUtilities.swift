@@ -75,7 +75,12 @@ final class CPYUtilities {
     static func sqliteApplicationSupportFolder() -> String {
         let paths = NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)
         let basePath: String = paths.first ?? NSTemporaryDirectory()
+        #if DEBUG
+        // Keep Debug builds away from the real history.
+        return (basePath as NSString).appendingPathComponent("com.yuukisgm.Clipy.debug")
+        #else
         return (basePath as NSString).appendingPathComponent("com.yuukisgm.Clipy")
+        #endif
     }
 
     static func sqliteStorageFolder() -> String {
