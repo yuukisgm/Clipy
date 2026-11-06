@@ -32,6 +32,8 @@ final class ExcludeAppService {
 extension ExcludeAppService {
     func startMonitoring() {
         disposeBag = DisposeBag()
+        // The notification only fires on the next switch, so seed the current app here.
+        frontApplication.accept(NSWorkspace.shared.frontmostApplication)
         // Monitoring top active application
         NSWorkspace.shared.notificationCenter.rx.notification(NSWorkspace.didActivateApplicationNotification)
             .map { $0.userInfo?["NSWorkspaceApplicationKey"] as? NSRunningApplication }
@@ -42,9 +44,14 @@ extension ExcludeAppService {
 
 // MARK: - Exclude
 extension ExcludeAppService {
+    /// Apple's password apps don't mark copied secrets as concealed, so they are always excluded.
+    private static let alwaysExcludedIdentifiers: Set<String> = ["com.apple.Passwords",
+                                                                 "com.apple.Passwords.MenuBarExtra",
+                                                                 "com.apple.keychainaccess"]
+
     func frontProcessIsExcludedApplication() -> Bool {
-        if applications.isEmpty { return false }
         guard let frontApplicationIdentifier = frontApplication.value?.bundleIdentifier else { return false }
+        if Self.alwaysExcludedIdentifiers.contains(frontApplicationIdentifier) { return true }
 
         for app in applications where app.identifier == frontApplicationIdentifier {
             return true
@@ -93,7 +100,8 @@ extension ExcludeAppService {
             switch self {
             case .onePassword:
                 return ["com.agilebits.onepassword-osx", // for 1Password 6
-                        "com.agilebits.onepassword7"] // for 1Password 7
+                        "com.agilebits.onepassword7", // for 1Password 7
+                        "com.1password.1password"] // for 1Password 8
             }
         }
 
@@ -102,6 +110,14 @@ extension ExcludeAppService {
             return !applications.filter { macApplicationIdentifiers.contains($0.identifier) }.isEmpty
         }
 
+    }
+
+    /// Markers from http://nspasteboard.org/ asking clipboard managers not to record the content.
+    private static let doNotRecordTypes: Set<String> = ["org.nspasteboard.ConcealedType",
+                                                        "org.nspasteboard.TransientType"]
+
+    func pasteboardRequestsNoRecording(_ pasteboard: NSPasteboard) -> Bool {
+        return pasteboard.types?.contains { Self.doNotRecordTypes.contains($0.rawValue) } ?? false
     }
 
     func copiedProcessIsExcludedApplications(pasteboard: NSPasteboard) -> Bool {

@@ -925,7 +925,10 @@ final class ClipSearchPanelController: NSObject {
         let maxHistory = integerPreference(Preferences.General.maxHistorySize, fallback: 100)
         let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
         let previewLength = menuPreviewLength()
-        allClips = SQLiteClipStore.shared.clips(limit: maxHistory, previewLength: previewLength, ascending: ascending)
+        // 表示件数ぶんの最新クリップだけ取る。古い順表示でも rebuildMainTable の prefix で最新側を落とさない。
+        let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
+        let limit = maxShowHistory > 0 ? min(maxShowHistory, maxHistory) : maxHistory
+        allClips = SQLiteClipStore.shared.clips(limit: limit, previewLength: previewLength, ascending: ascending)
         // allClips が更新されたので superset キャッシュは古い参照を抱えている。無効化する。
         lastSearchQuery = ""
         lastSearchFullMatches = nil
@@ -1638,14 +1641,16 @@ final class ClipSearchPanelController: NSObject {
             // 同上。selectionDidChange 経路でフォルダ展開は済むので showFolderIfNeeded は呼ばない。
             return nil
         default:
-            // Number key quick-select: only when search is empty and IME is idle
+            // Number key quick-select: only when search is empty and IME is idle.
+            // Numbers must be visible in the list; otherwise digits start a search.
             guard panelMode == .history,
                   searchField.stringValue.isEmpty,
                   !hasMarkedText(),
                   AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.addNumericKeyEquivalents),
+                  AppEnvironment.current.defaults.bool(forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers),
                   let chars = event.characters, chars.count == 1,
-                  let digit = chars.first, digit.isNumber else { return event }
-            let listNumber = digit == "0" ? 10 : Int(String(digit))!
+                  let digit = chars.first?.wholeNumberValue, (0...9).contains(digit) else { return event }
+            let listNumber = digit == 0 ? 10 : digit
             guard let row = filteredRows.firstIndex(where: {
                 guard case let .clip(_, number) = $0 else { return false }
                 return number == listNumber

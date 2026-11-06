@@ -45,7 +45,12 @@ final class CPYClipData: NSObject, Codable {
     }
 
     var identifier: String {
-        if let value = stringValue?.replace(pattern: "\\r\\n?", withTemplate: "\n").trim, value.isNotEmpty {
+        // Text alone can't tell apart file sets that start with the same file.
+        let hasAdditionalFiles = content.contains {
+            if case .additionalFileURLs = $0 { return true }
+            return false
+        }
+        if !hasAdditionalFiles, let value = stringValue?.replace(pattern: "\\r\\n?", withTemplate: "\n").trim, value.isNotEmpty {
             return ("text" + value.md5).md5
         }
         // Sort token identifiers so the hash is independent of the
@@ -53,6 +58,32 @@ final class CPYClipData: NSObject, Codable {
         let stableIdentifiers = content.compactMap { $0.deduplicationIdentifier }
         let identifiers = stableIdentifiers.isEmpty ? content.map { $0.identifier } : stableIdentifiers
         return identifiers.sorted().joined().md5
+    }
+
+    var containsFiles: Bool {
+        return content.contains { $0.toPasteboardType == .fileURL }
+    }
+
+    /// The system removes file URLs from the pasteboard when the writing app can't access the
+    /// files (e.g. in Downloads), and only a real read shows the macOS permission prompt.
+    func requestFileAccess() {
+        let values = content.flatMap { item -> [String] in
+            switch item {
+            case .fileURL(let value): return [value]
+            case .additionalFileURLs(let values): return values
+            default: return []
+            }
+        }
+        values.forEach { value in
+            guard let url = (URL(string: value) as NSURL?)?.filePathURL else { return }
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return }
+            if isDirectory.boolValue {
+                _ = try? FileManager.default.contentsOfDirectory(atPath: url.path)
+            } else {
+                try? FileHandle(forReadingFrom: url).close()
+            }
+        }
     }
 
     var primaryType: NSPasteboard.PasteboardType? {
@@ -99,11 +130,18 @@ final class CPYClipData: NSObject, Codable {
         self.content = types.compactMap { type in
             return .init(pasteboard: pasteboard, type: type, preloadedImage: preloadedImage)
         }
+        // string(forType: .fileURL) only returns the first file of a multi-file copy.
+        if containsFiles {
+            let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+            if urls.count > 1 {
+                content.append(.additionalFileURLs(urls.dropFirst().map(\.absoluteString)))
+            }
+        }
     }
 
-    init(title: String, image: NSImage) {
+    init(image: NSImage) {
         super.init()
-        self.content = [.string(title), .tiff(.init(image: image))]
+        self.content = [.tiff(.init(image: image))]
     }
 
     init(title: String) {
@@ -132,6 +170,8 @@ extension CPYClipData {
         case pdf(Data)
         case string(String)
         case fileURL(String)
+        // Files after the first one of a multi-file copy; `fileURL` holds the first.
+        case additionalFileURLs([String])
         case URL(String)
         case png(Image)
         case tiff(Image)
@@ -233,6 +273,9 @@ extension CPYClipData {
                     pasteboard.setString(value, forType: .string)
                 case .fileURL(let value):
                     pasteboard.setString(value, forType: .fileURL)
+                case .additionalFileURLs(let values):
+                    // Each file needs its own pasteboard item, added after the declared first one.
+                    pasteboard.writeObjects(values.compactMap { Foundation.URL(string: $0) as NSURL? })
                 case .URL(let value):
                     pasteboard.setString(value, forType: .URL)
                 case .rtf(let value):
@@ -255,6 +298,7 @@ extension CPYClipData {
             switch self {
                 case .string: return .string
                 case .fileURL: return .fileURL
+                case .additionalFileURLs: return nil
                 case .URL: return .URL
                 case .rtf: return .rtf
                 case .rtfd: return .rtfd
@@ -271,6 +315,8 @@ extension CPYClipData {
                 return "string" + value.md5
             case .fileURL(let value):
                 return "fileURL" + value
+            case .additionalFileURLs(let values):
+                return "additionalFileURLs" + values.joined()
             case .URL(let value):
                 return "URL" + value
             case .rtf(let value):

@@ -44,7 +44,8 @@ final class DataCleanService {
         let storageFolder = CPYUtilities.sqliteStorageFolder()
         guard let paths = try? fileManager.contentsOfDirectory(atPath: storageFolder) else { return }
 
-        let allClipPaths = SQLiteClipStore.shared.clipPayloadPaths()
+        // DB を読めないときは「履歴ゼロ」と区別できないので、何も消さない。
+        guard let allClipPaths = SQLiteClipStore.shared.clipPayloadPaths() else { return }
 
         // Delete diff datas
         Set(paths)

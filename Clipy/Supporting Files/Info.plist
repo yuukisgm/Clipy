@@ -26,11 +26,21 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Clipy needs access to paste files you copied from this location.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Clipy needs access to paste files you copied from this location.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Clipy needs access to paste files you copied from this location.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2015年 Shunsuke Furubayashi. All rights reserved.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Clipy needs access to paste files you copied from this location.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Clipy needs access to paste files you copied from this location.</string>
 </dict>
 </plist>

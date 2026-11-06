@@ -27,6 +27,8 @@ final class ClipService {
     // MARK: - Clips
     func startMonitoring() {
         disposeBag = DisposeBag()
+        // Only record copies made after monitoring starts.
+        cachedChangeCount.accept(NSPasteboard.general.changeCount)
         // Pasteboard observe timer
         // macOS は NSPasteboard 用の push 通知を提供しないためポーリングが必要。
         // 200ms (5Hz) は常時アイドル CPU/電池を浪費する一方、500ms に伸ばしても
@@ -89,6 +91,8 @@ extension ClipService {
         if !storeTypes.values.contains(NSNumber(value: true)) { return }
         // Pasteboard types
         let pasteboard = NSPasteboard.general
+        // Passwords and other content marked as concealed or transient
+        guard !AppEnvironment.current.excludeAppService.pasteboardRequestsNoRecording(pasteboard) else { return }
         let types = self.types(with: pasteboard)
         if types.isEmpty { return }
 
@@ -118,23 +122,25 @@ extension ClipService {
     func create(with title: String, image: NSImage) {
         // Create only image data
         let downsampled = image.downscaledIfNeeded(maxLongerSide: Self.maxImageLongerSide)
-        let data = CPYClipData(title: title, image: downsampled)
-        save(with: data, preloadedImage: downsampled)
+        let data = CPYClipData(image: downsampled)
+        save(with: data, preloadedImage: downsampled, title: title)
     }
 
-    fileprivate func save(with data: CPYClipData, preloadedImage: NSImage? = nil) {
+    fileprivate func save(with data: CPYClipData, preloadedImage: NSImage? = nil, title: String? = nil) {
         // Don't save empty string history
         if !data.isValid { return }
 
+        // Milliseconds, so copies within the same second keep their order.
+        // Rows saved earlier hold seconds, which still sort as older.
+        let unixTime = Int(Date().timeIntervalSince1970 * 1000)
         DispatchQueue.global(qos: .userInteractive).async {
             autoreleasepool {
-                // Saved time and path
-                let unixTime = Int(Date().timeIntervalSince1970)
+                // Saved path
                 let savedPath = CPYUtilities.sqliteStorageFolder() + "/\(NSUUID().uuidString).data"
                 let clip = CPYClip()
                 clip.dataHash = data.identifier
                 clip.dataPath = savedPath
-                clip.title = data.clipTitle?[0...10000] ?? ""
+                clip.title = title ?? data.clipTitle?[0...10000] ?? ""
                 clip.updateTime = unixTime
                 clip.primaryType = data.primaryType?.rawValue ?? ""
                 clip.isColorCode = data.colorCode != nil

@@ -82,16 +82,13 @@ extension SQLiteClipStore {
     }
 
     func clips(limit: Int, previewLength: Int, ascending: Bool) -> [CPYClip] {
-        let order = ascending ? "ASC" : "DESC"
         let effectiveLimit = max(limit, 0)
         let effectivePreviewLength = max(previewLength, 1)
         return queue.sync {
-            queryClips("""
+            queryClips(Self.newestClipsQuery("""
                 SELECT data_hash, data_path, substr(title, 1, ?), primary_type, update_time, thumbnail_path, is_color_code
                 FROM clips
-                ORDER BY update_time \(order)
-                LIMIT ?
-                """,
+                """, ascending: ascending),
                 [.int(effectivePreviewLength), .int(effectiveLimit)])
         }
     }
@@ -109,7 +106,6 @@ extension SQLiteClipStore {
     }
 
     func searchClips(query: String, limit: Int, previewLength: Int, ascending: Bool) -> [CPYClip] {
-        let order = ascending ? "ASC" : "DESC"
         let terms = Self.searchTerms(for: query)
         guard !terms.isEmpty else {
             return clips(limit: limit, previewLength: previewLength, ascending: ascending)
@@ -122,16 +118,14 @@ extension SQLiteClipStore {
             var bindings: [Binding] = [.int(effectivePreviewLength), .text(ftsQuery)]
             bindings.append(contentsOf: terms.map { .text(Self.likePattern(for: $0)) })
             bindings.append(.int(effectiveLimit))
-            return queryClips("""
+            return queryClips(Self.newestClipsQuery("""
                 SELECT c.data_hash, c.data_path, substr(c.title, 1, ?), c.primary_type, c.update_time, c.thumbnail_path, c.is_color_code
                 FROM clips c
                 WHERE c.rowid IN (
                     SELECT rowid FROM clips_fts WHERE clips_fts MATCH ?
                 )
                 OR (\(likeClauses))
-                ORDER BY c.update_time \(order)
-                LIMIT ?
-                """,
+                """, ascending: ascending),
                 bindings)
         }
     }
@@ -150,7 +144,7 @@ extension SQLiteClipStore {
     func touchClip(_ clip: CPYClip) {
         queue.sync {
             execute("UPDATE clips SET update_time = ? WHERE data_hash = ?",
-                    [.int(Int(Date().timeIntervalSince1970)), .text(clip.dataHash)])
+                    [.int(Int(Date().timeIntervalSince1970 * 1000)), .text(clip.dataHash)])
         }
     }
 
@@ -191,9 +185,27 @@ extension SQLiteClipStore {
         return clips
     }
 
-    func clipPayloadPaths() -> Set<String> {
+    /// Returns nil when the table could not be read completely.
+    func clipPayloadPaths() -> Set<String>? {
         return queue.sync {
-            Set(strings(sql: "SELECT data_path FROM clips").compactMap { ($0 as NSString).lastPathComponent })
+            var statement: OpaquePointer?
+            let sql = "SELECT data_path FROM clips"
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+                lError("SQLite prepare failed:", sql, lastError)
+                return nil
+            }
+            defer { sqlite3_finalize(statement) }
+            var paths = Set<String>()
+            var result = sqlite3_step(statement)
+            while result == SQLITE_ROW {
+                paths.insert((text(statement, 0) as NSString).lastPathComponent)
+                result = sqlite3_step(statement)
+            }
+            guard result == SQLITE_DONE else {
+                lError("SQLite step failed:", sql, lastError)
+                return nil
+            }
+            return paths
         }
     }
 
@@ -574,6 +586,13 @@ private extension SQLiteClipStore {
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: Self.snippetsDidChangeNotification, object: self)
         }
+    }
+
+    // Always keeps the newest rows under LIMIT; `ascending` only changes the display order.
+    // The last binding of the query must be the LIMIT value.
+    static func newestClipsQuery(_ select: String, ascending: Bool) -> String {
+        let newest = "\(select)\nORDER BY update_time DESC\nLIMIT ?"
+        return ascending ? "SELECT * FROM (\(newest)) ORDER BY update_time ASC" : newest
     }
 
     static func searchTerms(for query: String) -> [String] {

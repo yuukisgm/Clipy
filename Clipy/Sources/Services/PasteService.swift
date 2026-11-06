@@ -63,7 +63,9 @@ extension PasteService {
             let isPasteAndDeleteHistory = self.isPasteAndDeleteHistory(flags: flags)
             let isDeleteHistory = self.isDeleteHistory(flags: flags)
             // The plain-text modifier inverts the default paste format.
-            let pastesPlainText = AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pastePlainTextByDefault) != isPastePlainText
+            let defaultsToPlainText = AppEnvironment.current.defaults.bool(forKey: Preferences.Beta.pastePlainTextByDefault)
+            // The plain-text default doesn't apply to files, or Finder would receive a text clipping.
+            let pastesPlainText = (defaultsToPlainText && clipData.containsFiles) ? false : defaultsToPlainText != isPastePlainText
             guard isPastePlainText || isPasteAndDeleteHistory || isDeleteHistory else {
                 copyToPasteboard(with: clipData, asPlainText: pastesPlainText)
                 AppEnvironment.current.clipService.reorderAfterPasting(clip)
@@ -123,9 +125,11 @@ extension PasteService {
     private func copyToPasteboard(with clipData: CPYClipData) {
         lock.lock(); defer { lock.unlock() }
 
+        clipData.requestFileAccess()
         let pasteboard = NSPasteboard.general
         var types = clipData.content.compactMap(\.toPasteboardType)
-        let plainText = plainText(from: clipData)
+        // Spreadsheet text types are meaningless for files and could compete with them in the target app.
+        let plainText = clipData.containsFiles ? nil : self.plainText(from: clipData)
         let tableTextTypes = Self.tableTextPasteboardTypes
         if plainText != nil {
             tableTextTypes.forEach {
@@ -199,7 +203,31 @@ extension PasteService {
     }
 
     private static func requiresClearingInternalClipboard(bundleIdentifier: String?) -> Bool {
-        bundleIdentifier == "com.microsoft.Excel"
+        guard let bundleIdentifier = bundleIdentifier, bundleIdentifier == "com.microsoft.Excel" else { return false }
+        // Escape would discard the text being edited in a cell or close an open dialog.
+        return !isEditingTextOrInDialog(bundleIdentifier: bundleIdentifier)
+    }
+
+    private static func isEditingTextOrInDialog(bundleIdentifier: String) -> Bool {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else { return false }
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        if let focused = axElement(appElement, kAXFocusedUIElementAttribute),
+           let role = axString(focused, kAXRoleAttribute),
+           [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role) {
+            return true
+        }
+        if let window = axElement(appElement, kAXFocusedWindowAttribute),
+           let subrole = axString(window, kAXSubroleAttribute),
+           [kAXDialogSubrole, kAXSystemDialogSubrole].contains(subrole) {
+            return true
+        }
+        return false
+    }
+
+    private static func axString(_ element: AXUIElement, _ attribute: String) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success else { return nil }
+        return ref as? String
     }
 
     // MARK: - Virtual Machine
