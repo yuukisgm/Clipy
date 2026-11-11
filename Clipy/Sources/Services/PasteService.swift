@@ -189,7 +189,7 @@ extension PasteService {
             Self.pressPasteMenuItem(of: app, attempt: 1, fallbackKeyCode: vKeyCode)
             return
         }
-        DispatchQueue.main.async {
+        Self.whenReadyForKeys(bundleIdentifier: targetBundleIdentifier, attempt: 1) {
             let source = CGEventSource(stateID: .combinedSessionState)
             // Disable local keyboard events while pasting
             source?.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateSuppressionInterval)
@@ -201,6 +201,40 @@ extension PasteService {
                 return
             }
             Self.postPasteCommand(source: source, vKeyCode: vKeyCode)
+        }
+    }
+
+    // MARK: - Target Readiness
+    private static let readyForKeysPollInterval: TimeInterval = 0.02
+    private static let readyForKeysQueryTimeout: Float = 0.05
+    private static let readyForKeysMaxAttempts = 8
+
+    /// The workspace reports the target as activated before the target itself has handled the
+    /// activation. A Cmd+V arriving in that gap finds no key window and is dropped (the clip is
+    /// on the pasteboard but nothing is pasted; seen with Electron apps). Wait until the target
+    /// says it is frontmost, then post. Gives up after ~0.5s and posts anyway, as before.
+    private static func whenReadyForKeys(bundleIdentifier: String?, attempt: Int, _ post: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 1 ? 0 : readyForKeysPollInterval)) {
+            guard attempt < readyForKeysMaxAttempts,
+                  let bundleIdentifier = bundleIdentifier,
+                  let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first,
+                  !app.isActive || isHandlingKeys(app) == false else {
+                post()
+                return
+            }
+            whenReadyForKeys(bundleIdentifier: bundleIdentifier, attempt: attempt + 1, post)
+        }
+    }
+
+    /// nil when the app can't tell (no Accessibility support); callers then don't wait.
+    private static func isHandlingKeys(_ app: NSRunningApplication) -> Bool? {
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(appElement, readyForKeysQueryTimeout)
+        var ref: CFTypeRef?
+        switch AXUIElementCopyAttributeValue(appElement, kAXFrontmostAttribute as CFString, &ref) {
+        case .success: return ref as? Bool
+        case .cannotComplete: return false // Busy: still starting to handle the activation.
+        default: return nil
         }
     }
 
