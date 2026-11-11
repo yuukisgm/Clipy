@@ -1,9 +1,9 @@
 /* Labels */
-"lSu-gq-grM.title" = "保存するクリップボードの種類:";
+"lSu-gq-grM.title" = "履歴に保存する種類:";
 "9wr-mR-kmC.title" = "プレーンテキスト";
 "xyj-FL-88b.title" = "リッチテキスト (RTF)";
-"Nvy-pc-6hl.title" = "リッチテキストディレクトリ (RTFD)";
+"Nvy-pc-6hl.title" = "画像付きリッチテキスト (RTFD)";
 "27s-8p-tdh.title" = "PDF";
-"iO6-7x-OcH.title" = "ファイル名";
+"iO6-7x-OcH.title" = "ファイル";
 "oXv-rM-kj5.title" = "URL";
-"lZ0-qQ-qWk.title" = "TIFF 画像";
+"lZ0-qQ-qWk.title" = "画像";

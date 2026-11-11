@@ -1,11 +1,11 @@
 /* Column headers */
-"6RM-Ow-USQ.title" = "アクション";
+"6RM-Ow-USQ.title" = "キーを押しながら履歴を選んだときの動作";
 "mds-If-iv8.title" = "バージョン";
 
 /* Actions */
-"pTd-Cl-2Ck.title" = "デフォルトでプレーンテキストとして貼り付け";
-"r0C-kF-Q0z.title" = "プレーンテキストとして貼り付け";
-"pgE-3j-ZEy.title" = "スクリーンショットを履歴に保存";
+"pTd-Cl-2Ck.title" = "常にプレーンテキストで貼り付ける";
+"r0C-kF-Q0z.title" = "プレーンテキストで貼り付け";
+"pgE-3j-ZEy.title" = "撮影したスクリーンショットを履歴に保存";
 "sYs-Da-TSj.title" = "履歴から削除";
 "M5n-Mr-02l.title" = "貼り付けて履歴から削除";
 

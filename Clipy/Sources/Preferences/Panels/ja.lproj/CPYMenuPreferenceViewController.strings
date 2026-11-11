@@ -1,14 +1,14 @@
 /* Labels */
-"FP7-VI-YVJ.title" = "フォルダ内の表示件数:";
-"nMF-6D-hXu.title" = "メニュー項目に番号を付ける";
-"wef-NB-6p6.title" = "インライン表示件数:";
+"FP7-VI-YVJ.title" = "それ以降を1フォルダにまとめる件数:";
+"nMF-6D-hXu.title" = "一覧に番号を表示（表示中だけ数字キーが効きます）";
+"wef-NB-6p6.title" = "一覧に直接並べる件数:";
 "QFO-xC-Z3p.title" = "ツールチップの最大文字数:";
-"h4n-Nv-zj1.title" = "メニュー項目にツールチップを表示";
-"hE2-DL-MKl.title" = "数字キーをショートカットとして割り当て";
+"h4n-Nv-zj1.title" = "項目の全文をツールチップで表示";
+"hE2-DL-MKl.title" = "数字キーで貼り付ける";
 "yrU-qO-OwD.title" = "メニュー項目にアイコンを表示";
-"U2I-bu-kTR.title" = "全履歴削除前に確認ダイアログを表示";
-"Drj-kg-Km5.title" = "ツールチップに画像プレビューを表示";
-"hgW-RK-5oy.title" = "カラーコードプレビューを表示";
+"U2I-bu-kTR.title" = "履歴をすべて削除する前に確認する";
+"Drj-kg-Km5.title" = "ツールチップに画像のプレビューを表示";
+"hgW-RK-5oy.title" = "ツールチップに色コードの色見本を表示";
 
 /* Units */
 "Ovp-if-Azp.title" = "件";

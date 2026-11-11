@@ -5,20 +5,20 @@
 
 /* Labels */
 "Su3-mF-z1T.title" = "ログイン時に起動";
-"0yt-u0-ROt.title" = "メニュー選択後に「⌘+V」を入力";
-"Nab-CO-ytH.title" = "最大履歴保存数:";
-"JTq-PL-heo.title" = "最大表示件数:";
-"Lps-06-dPB.title" = "履歴の並び順:";
-"OT4-9P-YiO.title" = "最終使用日時";
-"YmS-J6-ERc.title" = "作成日時";
-"ju3-6a-6xj.title" = "最終使用日時";
-"Faj-kQ-G1v.title" = "ステータスバーアイコン:";
+"0yt-u0-ROt.title" = "履歴を選んだら自動で貼り付ける";
+"Nab-CO-ytH.title" = "保存する件数:";
+"JTq-PL-heo.title" = "一覧に表示する件数:";
+"Lps-06-dPB.title" = "並び順:";
+"OT4-9P-YiO.title" = "新しい順（使うと先頭へ）";
+"YmS-J6-ERc.title" = "古い順（コピーした順）";
+"ju3-6a-6xj.title" = "新しい順（使うと先頭へ）";
+"Faj-kQ-G1v.title" = "メニューバーのアイコン:";
 "aEh-u0-hQR.title" = "なし";
-"mHH-Jt-Y3D.title" = "メニューの幅（min 260px）:";
-"WJP-X8-vjR.title" = "メニューフォントサイズ:";
+"mHH-Jt-Y3D.title" = "履歴パネルの幅（260px 以上）:";
+"WJP-X8-vjR.title" = "履歴パネルの文字サイズ:";
 
 /* Units */
 "eeq-cw-v00.title" = "件";
 "WsB-fR-rm1.title" = "件";
-"47y-Cq-W3e.title" = "px";
+"47y-Cq-W3e.title" = "pt";
 "GZc-Gn-kVR.title" = "px";
