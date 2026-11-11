@@ -608,8 +608,12 @@ private extension SQLiteClipStore {
     static func searchTerms(for query: String) -> [String] {
         return query
             .components(separatedBy: CharacterSet.whitespacesAndNewlines)
-            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
             .filter { !$0.isEmpty }
+            // A term made only of punctuation ("。", "@", "://") stays as typed; LIKE still finds it.
+            .map { term in
+                let trimmed = term.trimmingCharacters(in: .punctuationCharacters)
+                return trimmed.isEmpty ? term : trimmed
+            }
     }
 
     static func ftsQuery(for terms: [String]) -> String {

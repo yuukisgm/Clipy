@@ -20,6 +20,8 @@ final class ClipService {
 
     // MARK: - Properties
     fileprivate var cachedChangeCount = BehaviorRelay<Int>(value: 0)
+    // Serializes the polling's change check with our own pasteboard writes.
+    fileprivate let changeCountLock = NSLock()
     // Written on the main thread and read by the pasteboard polling thread.
     fileprivate let storeTypes = BehaviorRelay<[String: NSNumber]>(value: [:])
     fileprivate let scheduler = SerialDispatchQueueScheduler(qos: .userInteractive)
@@ -36,12 +38,15 @@ final class ClipService {
         // 体感のレスポンスはほぼ変わらない。コピー直後にメニューを開く操作にも十分間に合う。
         Observable<Int>
             .interval(.milliseconds(500), scheduler: scheduler)
-            .map { _ in NSPasteboard.general.changeCount }
-            .withLatestFrom(cachedChangeCount.asObservable()) { ($0, $1) }
-            .filter { $0 != $1 }
-            .subscribe(onNext: { [weak self] changeCount, _ in
-                self?.cachedChangeCount.accept(changeCount)
-                self?.create()
+            .subscribe(onNext: { [weak self] _ in
+                guard let self = self else { return }
+                // Under the lock, so a write of our own is never seen half-way (see writeToPasteboardWithoutRecording).
+                self.changeCountLock.lock()
+                let changeCount = NSPasteboard.general.changeCount
+                let changed = changeCount != self.cachedChangeCount.value
+                if changed { self.cachedChangeCount.accept(changeCount) }
+                self.changeCountLock.unlock()
+                if changed { self.create() }
             })
             .disposed(by: disposeBag)
         // Store types
@@ -74,7 +79,10 @@ final class ClipService {
         cachedChangeCount.accept(cachedChangeCount.value + 1)
     }
 
-    func ignoreCurrentPasteboardChange() {
+    /// Runs a pasteboard write of our own so that the polling never records it as a new copy.
+    func writeToPasteboardWithoutRecording(_ write: () -> Void) {
+        changeCountLock.lock(); defer { changeCountLock.unlock() }
+        write()
         cachedChangeCount.accept(NSPasteboard.general.changeCount)
     }
 
@@ -94,7 +102,7 @@ extension ClipService {
         let pasteboard = NSPasteboard.general
         // Passwords and other content marked as concealed or transient
         guard !AppEnvironment.current.excludeAppService.pasteboardRequestsNoRecording(pasteboard) else { return }
-        let types = self.types(with: pasteboard)
+        var types = self.types(with: pasteboard)
         if types.isEmpty { return }
 
         // Excluded application
@@ -111,7 +119,13 @@ extension ClipService {
             var preloadedImage: NSImage? = nil
             if types.contains(.png) || types.contains(.tiff) {
                 if let raw = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
-                    preloadedImage = raw.downscaledIfNeeded(maxLongerSide: Self.maxImageLongerSide)
+                    let downscaled = raw.downscaledIfNeeded(maxLongerSide: Self.maxImageLongerSide)
+                    // PNG is stored as the original pasteboard data, which would bypass the size cap.
+                    // Store the downscaled image (TIFF) in its place.
+                    if downscaled !== raw, let pngIndex = types.firstIndex(of: .png) {
+                        types[pngIndex] = .tiff
+                    }
+                    preloadedImage = downscaled
                 }
             }
 

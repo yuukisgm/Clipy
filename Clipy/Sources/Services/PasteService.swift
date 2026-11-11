@@ -99,10 +99,11 @@ extension PasteService {
         guard let string = string else { return }
         lock.lock(); defer { lock.unlock() }
 
-        let pasteboard = NSPasteboard.general
-        pasteboard.declareTypes([.string], owner: nil)
-        pasteboard.setString(string, forType: .string)
-        AppEnvironment.current.clipService.ignoreCurrentPasteboardChange()
+        AppEnvironment.current.clipService.writeToPasteboardWithoutRecording {
+            let pasteboard = NSPasteboard.general
+            pasteboard.declareTypes([.string], owner: nil)
+            pasteboard.setString(string, forType: .string)
+        }
     }
 
     func copyToPasteboard(with clip: CPYClip) {
@@ -138,16 +139,17 @@ extension PasteService {
                 }
             }
         }
-        pasteboard.declareTypes(types, owner: nil)
-        clipData.content.forEach { type in
-            type.recover(to: pasteboard)
-        }
-        if let plainText = plainText {
-            tableTextTypes.forEach {
-                pasteboard.setString(plainText, forType: $0)
+        AppEnvironment.current.clipService.writeToPasteboardWithoutRecording {
+            pasteboard.declareTypes(types, owner: nil)
+            clipData.content.forEach { type in
+                type.recover(to: pasteboard)
+            }
+            if let plainText = plainText {
+                tableTextTypes.forEach {
+                    pasteboard.setString(plainText, forType: $0)
+                }
             }
         }
-        AppEnvironment.current.clipService.ignoreCurrentPasteboardChange()
     }
 
     private func plainText(from clipData: CPYClipData) -> String? {

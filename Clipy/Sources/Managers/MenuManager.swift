@@ -68,15 +68,20 @@ extension MenuManager {
     /// Asks AX for the focused text element of the frontmost app and returns
     /// the bottom-left of the caret (or element bounds) in Cocoa screen
     /// coordinates. Returns nil if anything fails or AX trust is not granted.
+    private static let caretQueryTimeout: Float = 0.5
+
     fileprivate func caretScreenPoint() -> NSPoint? {
         guard AXIsProcessTrusted() else { return nil }
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        // The default timeout is several seconds; an unresponsive app must not hold up the panel.
+        AXUIElementSetMessagingTimeout(appElement, Self.caretQueryTimeout)
 
         var focusedAny: AnyObject?
         guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedAny) == .success,
               let focusedRef = focusedAny else { return nil }
         let focused = focusedRef as! AXUIElement
+        AXUIElementSetMessagingTimeout(focused, Self.caretQueryTimeout)
 
         guard let rect = caretRect(for: focused) ?? elementRect(for: focused) else { return nil }
 

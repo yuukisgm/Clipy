@@ -25,6 +25,19 @@ class CPYTypePreferenceViewController: NSViewController {
             storeTypes = NSMutableDictionary()
         }
         super.loadView()
+        // The checkboxes are bound to the dictionary; apply a change right away instead of on window close.
+        CPYClipData.availableTypesString.forEach {
+            storeTypes.addObserver(self, forKeyPath: $0, options: [], context: nil)
+        }
+    }
+
+    // swiftlint:disable:next block_based_kvo
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+        guard object as AnyObject? === storeTypes else {
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+            return
+        }
+        AppEnvironment.current.defaults.set(storeTypes, forKey: Constants.UserDefaults.storeTypes)
     }
 
 }
