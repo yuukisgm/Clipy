@@ -698,6 +698,9 @@ final class ClipSearchPanelController: NSObject {
     // Continuously tracked so we always know where to paste even if frontmostApplication
     // returns nil at the moment the hotkey fires.
     private var lastActiveApp: NSRunningApplication?
+    // Set while the panel is opened over one of Clipy's own windows (Preferences, snippet editor);
+    // that window is the paste target instead of lastActiveApp.
+    private weak var ownTargetWindow: NSWindow?
     private var workspaceObserver: Any?
     private var scrollTopToSeparatorConstraint: NSLayoutConstraint?
     private var scrollTopToContainerConstraint: NSLayoutConstraint?
@@ -890,7 +893,8 @@ final class ClipSearchPanelController: NSObject {
         folderPanel.orderOut(nil)
         panel.orderOut(nil)
         searchField.stringValue = ""
-        if restoreFocus {
+        // Opened over one of Clipy's own windows: focus stays in Clipy.
+        if restoreFocus, ownTargetWindow?.isVisible != true {
             // Only when no other app took focus in the meantime (Cmd+Tab, Dock click, ...).
             let target = lastActiveApp
             DispatchQueue.main.async {
@@ -1112,6 +1116,7 @@ final class ClipSearchPanelController: NSObject {
 
     private func clipListTitle(_ clip: CPYClip) -> String {
         if clip.title.isEmpty && isImageClip(clip) { return NSLocalizedString("(Image)", comment: "") }
+        if clip.title.isEmpty && clip.primaryType == NSPasteboard.PasteboardType.pdf.rawValue { return "(PDF)" }
         if clip.primaryType == NSPasteboard.PasteboardType.fileURL.rawValue {
             if let url = URL(string: clip.title), url.scheme == "file" {
                 return "📋" + url.lastPathComponent
@@ -1346,7 +1351,7 @@ final class ClipSearchPanelController: NSObject {
         // after the target app activates (activation event overwrites currentEvent).
         let capturedFlags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
 
-        guard let targetApp = targetApp else {
+        guard let targetApp = focusOwnTargetWindow() ? nil : targetApp else {
             AppEnvironment.current.pasteService.paste(with: clip, capturedFlags: capturedFlags)
             return
         }
@@ -1383,7 +1388,7 @@ final class ClipSearchPanelController: NSObject {
             AppEnvironment.current.pasteService.paste()
         }
 
-        guard let targetApp = targetApp else {
+        guard let targetApp = focusOwnTargetWindow() ? nil : targetApp else {
             paste()
             return
         }
@@ -1476,11 +1481,20 @@ final class ClipSearchPanelController: NSObject {
             self.searchDebounceWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self = self else { return }
+                self.searchDebounceWorkItem = nil
                 self.applyFilter(self.searchField.stringValue)
             }
             self.searchDebounceWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(120), execute: work)
         }
+    }
+
+    /// Applies a search that is still waiting for the debounce, so Return acts on the list the user typed for.
+    private func flushPendingSearch() {
+        guard let work = searchDebounceWorkItem else { return }
+        work.cancel()
+        searchDebounceWorkItem = nil
+        applyFilter(searchField.stringValue)
     }
 
     private func removeSearchObserver() {
@@ -1500,9 +1514,22 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func rememberFrontmostApp() {
-        guard let front = NSWorkspace.shared.frontmostApplication,
-              front.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
-        lastActiveApp = front
+        guard let front = NSWorkspace.shared.frontmostApplication else { return }
+        guard front.bundleIdentifier == Bundle.main.bundleIdentifier else {
+            lastActiveApp = front
+            ownTargetWindow = nil
+            return
+        }
+        // Reopened while the panel is already up: keep the current target.
+        guard !panel.isVisible else { return }
+        ownTargetWindow = NSApp.keyWindow
+    }
+
+    /// Makes Clipy's own window key again so that it receives the paste. False when the target is another app.
+    private func focusOwnTargetWindow() -> Bool {
+        guard let window = ownTargetWindow, window.isVisible else { return false }
+        window.makeKey()
+        return true
     }
 
     private func hasMarkedText() -> Bool {
@@ -1581,6 +1608,7 @@ final class ClipSearchPanelController: NSObject {
             return nil
         case 36, 76: // Return, numpad Enter
             guard !hasMarkedText() else { return event }
+            flushPendingSearch()
             if activeList == .folder, folderPanel.isVisible {
                 selectCurrentFolderItem()
             } else {
@@ -2106,6 +2134,7 @@ extension ClipSearchPanelController: NSSearchFieldDelegate {
         switch commandSelector {
         case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
             guard !hasMarkedText() else { return false }
+            flushPendingSearch()
             if activeList == .folder, folderPanel.isVisible {
                 selectCurrentFolderItem()
             } else {

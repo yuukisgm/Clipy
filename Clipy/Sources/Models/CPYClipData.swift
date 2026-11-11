@@ -41,7 +41,7 @@ final class CPYClipData: NSObject, Codable {
             default:
                 return nil
             }
-        }.first
+        }.first ?? richTextTitle
         let additionalFileCount = content.lazy.compactMap { type -> Int? in
             if case .additionalFileURLs(let values) = type { return values.count }
             return nil
@@ -50,6 +50,24 @@ final class CPYClipData: NSObject, Codable {
             return "\(title) +\(additionalFileCount)"
         }
         return title
+    }
+
+    // Rich text copied without a plain-text flavor would otherwise get an empty title (a blank row).
+    private var richTextTitle: String? {
+        return content.lazy.compactMap { type -> String? in
+            let data: Data
+            let documentType: NSAttributedString.DocumentType
+            switch type {
+            case .rtf(let value):
+                (data, documentType) = (value, .rtf)
+            case .rtfd(let value):
+                (data, documentType) = (value, .rtfd)
+            default:
+                return nil
+            }
+            let text = (try? NSAttributedString(data: data, options: [.documentType: documentType], documentAttributes: nil))?.string.trim
+            return text.isNotEmpty ? text : nil
+        }.first
     }
 
     var identifier: String {
