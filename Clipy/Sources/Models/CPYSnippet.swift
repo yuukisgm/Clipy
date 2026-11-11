@@ -22,9 +22,6 @@ final class CPYSnippet: NSObject {
     var identifier = UUID().uuidString
     weak var folder: CPYFolder?
 
-    var isInvalidated: Bool {
-        return false
-    }
 }
 
 extension CPYSnippet {

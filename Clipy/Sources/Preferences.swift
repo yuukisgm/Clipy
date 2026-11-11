@@ -30,7 +30,6 @@ struct Preferences {
         static let numberOfItemsPlaceInline = "kCPYPrefNumberOfItemsPlaceInlineKey"
         static let numberOfItemsPlaceInsideFolder = "kCPYPrefNumberOfItemsPlaceInsideFolderKey"
 
-        static let showIconInTheMenu = "kCPYPrefShowIconInTheMenuKey"
 
         static let addNumericKeyEquivalents = "addNumericKeyEquivalents"
         static let menuItemsAreMarkedWithNumbers = "menuItemsAreMarkedWithNumbers"
@@ -55,10 +54,5 @@ struct Preferences {
         static let pasteAndDeleteHistoryModifier = "kCPYBetapasteAndDeleteHistoryModifier"
 
         static let observerScreenshot = "kCPYBetaObserveScreenshot"
-    }
-
-    struct Update {
-        static let enableAutomaticCheck = "kCPYEnableAutomaticCheckKey"
-        static let checkInterval = "kCPYUpdateCheckIntervalKey"
     }
 }

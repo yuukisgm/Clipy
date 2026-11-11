@@ -5,7 +5,6 @@
 //
 
 import Cocoa
-import PINCache
 import SQLite3
 
 final class SQLiteClipStore {
@@ -57,14 +56,13 @@ extension SQLiteClipStore {
                                         sql: "SELECT data_path FROM clips WHERE data_hash = ?",
                                         bindings: [.text(clip.dataHash)])
             let saved = execute("""
-                INSERT INTO clips(data_hash, data_path, title, primary_type, update_time, thumbnail_path, is_color_code)
-                VALUES(?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO clips(data_hash, data_path, title, primary_type, update_time, is_color_code)
+                VALUES(?, ?, ?, ?, ?, ?)
                 ON CONFLICT(data_hash) DO UPDATE SET
                     data_path = excluded.data_path,
                     title = excluded.title,
                     primary_type = excluded.primary_type,
                     update_time = excluded.update_time,
-                    thumbnail_path = excluded.thumbnail_path,
                     is_color_code = excluded.is_color_code
                 """,
                 [.text(clip.dataHash),
@@ -72,7 +70,6 @@ extension SQLiteClipStore {
                  .text(clip.title),
                  .text(clip.primaryType),
                  .int(clip.updateTime),
-                 .text(clip.thumbnailPath),
                  .int(clip.isColorCode ? 1 : 0)])
             if saved, let oldPath = oldPath, oldPath != clip.dataPath {
                 try? FileManager.default.removeItem(atPath: oldPath)
@@ -86,7 +83,7 @@ extension SQLiteClipStore {
         let effectivePreviewLength = max(previewLength, 1)
         return queue.sync {
             queryClips(Self.newestClipsQuery("""
-                SELECT data_hash, data_path, substr(title, 1, ?), primary_type, update_time, thumbnail_path, is_color_code
+                SELECT data_hash, data_path, substr(title, 1, ?), primary_type, update_time, is_color_code
                 FROM clips
                 """, ascending: ascending),
                 [.int(effectivePreviewLength), .int(effectiveLimit)])
@@ -96,7 +93,7 @@ extension SQLiteClipStore {
     func clip(dataHash: String, previewLength: Int) -> CPYClip? {
         return queue.sync {
             queryClips("""
-                SELECT data_hash, data_path, substr(title, 1, ?), primary_type, update_time, thumbnail_path, is_color_code
+                SELECT data_hash, data_path, substr(title, 1, ?), primary_type, update_time, is_color_code
                 FROM clips
                 WHERE data_hash = ?
                 LIMIT 1
@@ -119,7 +116,7 @@ extension SQLiteClipStore {
             bindings.append(contentsOf: terms.map { .text(Self.likePattern(for: $0)) })
             bindings.append(.int(effectiveLimit))
             return queryClips(Self.newestClipsQuery("""
-                SELECT c.data_hash, c.data_path, substr(c.title, 1, ?), c.primary_type, c.update_time, c.thumbnail_path, c.is_color_code
+                SELECT c.data_hash, c.data_path, substr(c.title, 1, ?), c.primary_type, c.update_time, c.is_color_code
                 FROM clips c
                 WHERE c.rowid IN (
                     SELECT rowid FROM clips_fts WHERE clips_fts MATCH ?
@@ -134,9 +131,6 @@ extension SQLiteClipStore {
         queue.sync {
             execute("DELETE FROM clips WHERE data_hash = ?", [.text(clip.dataHash)])
             trimClipDataCache(removedHash: clip.dataHash)
-        }
-        if !clip.thumbnailPath.isEmpty {
-            PINCache.shared.removeObject(forKey: clip.thumbnailPath)
         }
         try? FileManager.default.removeItem(atPath: clip.dataPath)
     }
@@ -157,14 +151,13 @@ extension SQLiteClipStore {
             return values
         }
         paths.forEach { try? FileManager.default.removeItem(atPath: $0) }
-        PINCache.shared.removeAllObjects()
     }
 
     func deleteOverflowingClips(maxHistorySize: Int) -> [CPYClip] {
         guard maxHistorySize > 0 else { return [] }
         let clips = queue.sync { () -> [CPYClip] in
             let overflow = queryClips("""
-                SELECT data_hash, data_path, title, primary_type, update_time, thumbnail_path, is_color_code
+                SELECT data_hash, data_path, title, primary_type, update_time, is_color_code
                 FROM clips
                 WHERE data_hash NOT IN (
                     SELECT data_hash FROM clips ORDER BY update_time DESC LIMIT ?
@@ -176,12 +169,7 @@ extension SQLiteClipStore {
             }
             return overflow
         }
-        clips.forEach {
-            if !$0.thumbnailPath.isEmpty {
-                PINCache.shared.removeObject(forKey: $0.thumbnailPath)
-            }
-            try? FileManager.default.removeItem(atPath: $0.dataPath)
-        }
+        clips.forEach { try? FileManager.default.removeItem(atPath: $0.dataPath) }
         return clips
     }
 
@@ -381,7 +369,7 @@ private extension SQLiteClipStore {
                 title TEXT NOT NULL,
                 primary_type TEXT NOT NULL,
                 update_time INTEGER NOT NULL,
-                thumbnail_path TEXT NOT NULL DEFAULT '',
+                thumbnail_path TEXT NOT NULL DEFAULT '', -- unused; kept for existing databases
                 is_color_code INTEGER NOT NULL DEFAULT 0
             )
             """, [])
@@ -492,8 +480,7 @@ private extension SQLiteClipStore {
                                  dataHash: text(statement, 0),
                                  primaryType: text(statement, 3),
                                  updateTime: Int(sqlite3_column_int64(statement, 4)),
-                                 thumbnailPath: text(statement, 5),
-                                 isColorCode: sqlite3_column_int(statement, 6) != 0))
+                                 isColorCode: sqlite3_column_int(statement, 5) != 0))
         }
         return clips
     }

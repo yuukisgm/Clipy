@@ -4,14 +4,6 @@ PODS:
   - LetsMove (1.25)
   - Magnet (3.3.0):
     - Sauce (~> 2.2.0)
-  - PINCache (3.0.3):
-    - PINCache/Arc-exception-safe (= 3.0.3)
-    - PINCache/Core (= 3.0.3)
-  - PINCache/Arc-exception-safe (3.0.3):
-    - PINCache/Core
-  - PINCache/Core (3.0.3):
-    - PINOperation (~> 1.2.1)
-  - PINOperation (1.2.2)
   - RxCocoa (6.6.0):
     - RxRelay (= 6.6.0)
     - RxSwift (= 6.6.0)
@@ -33,7 +25,6 @@ PODS:
 DEPENDENCIES:
   - KeyHolder
   - LetsMove
-  - PINCache
   - RxCocoa
   - RxOptional
   - RxScreeen
@@ -47,8 +38,6 @@ SPEC REPOS:
     - KeyHolder
     - LetsMove
     - Magnet
-    - PINCache
-    - PINOperation
     - RxCocoa
     - RxOptional
     - RxRelay
@@ -63,8 +52,6 @@ SPEC CHECKSUMS:
   KeyHolder: 7fce073043392cddc3e3126f3f9bdaa5ecf1f19e
   LetsMove: 7b9fe44737707d984fbd3f47af46609a9a07b461
   Magnet: a44a5a14eecc77433cbaad1431b78f7d20725bf2
-  PINCache: 7a8fc1a691173d21dbddbf86cd515de6efa55086
-  PINOperation: daa34d4aa1d8449089be7d405b9d974abc4724c6
   RxCocoa: 44a80de90e25b739b5aeaae3c8c371a32e3343cc
   RxOptional: 3664964c96b69dd20c9cf78bdfe546615e26eca8
   RxRelay: 45eaa5db8ee4fb50e5ebd57deec0159e97fa51e6
@@ -75,6 +62,6 @@ SPEC CHECKSUMS:
   SwiftGen: 1366a7f71aeef49954ca5a63ba4bef6b0f24138c
   SwiftLint: 5ce4d6a8ff83f1b5fd5ad5dbf30965d35af65e44
 
-PODFILE CHECKSUM: 5df0c686be71121492dabeca1c576e806d831567
+PODFILE CHECKSUM: a7cd1b150a5fe518a0067d11ffb65d5091b91957
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0

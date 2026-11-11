@@ -668,11 +668,6 @@ final class ClipSearchPanelController: NSObject {
     private var resignKeyObserver: Any?
     private var searchObserver: Any?
     private var searchDebounceWorkItem: DispatchWorkItem?
-    // 直前検索の結果を superset として再利用するためのキャッシュ。
-    // クエリが前回の延長 (hasPrefix) なら全件 allClips でなく前回絞り込み済みから走査して O(n) を縮める。
-    // 早期打ち切り (limit 到達) で truncate された場合は nil にして無効化する。
-    private var lastSearchQuery: String = ""
-    private var lastSearchFullMatches: [CPYClip]? = nil
     // 矢印キー / 番号キー連打時のツールチップを debounce する。連打中はキャンセルされ続けるので、
     // 止まってから 1 回だけ表示が走る。連打中の重い tooltip 描画を抑える狙い。
     private var keyboardTooltipWorkItem: DispatchWorkItem?
@@ -938,9 +933,6 @@ final class ClipSearchPanelController: NSObject {
         let maxShowHistory = integerPreference(Preferences.General.maxShowHistorySize, fallback: 25)
         let limit = maxShowHistory > 0 ? min(maxShowHistory, maxHistory) : maxHistory
         allClips = SQLiteClipStore.shared.clips(limit: limit, previewLength: previewLength, ascending: ascending)
-        // allClips が更新されたので superset キャッシュは古い参照を抱えている。無効化する。
-        lastSearchQuery = ""
-        lastSearchFullMatches = nil
     }
 
     private func applyFilter(_ query: String) {
@@ -955,16 +947,12 @@ final class ClipSearchPanelController: NSObject {
         let clips: [CPYClip]
         if query.isEmpty {
             clips = Array(allClips.prefix(limit))
-            lastSearchQuery = ""
-            lastSearchFullMatches = nil
         } else {
             let ascending = !AppEnvironment.current.defaults.bool(forKey: Preferences.General.reorderClipsAfterPasting)
             clips = SQLiteClipStore.shared.searchClips(query: query,
                                                        limit: limit,
                                                        previewLength: menuPreviewLength(),
                                                        ascending: ascending)
-            lastSearchQuery = query
-            lastSearchFullMatches = nil
         }
         visibleClips = clips
         if closeFolderPanel {

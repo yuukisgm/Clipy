@@ -10,7 +10,6 @@ target 'Clipy' do
   
   pod 'Sauce'
   
-  pod 'PINCache'
   pod 'KeyHolder'
 
   pod 'LetsMove'

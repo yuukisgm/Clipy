@@ -23,9 +23,6 @@ final class CPYFolder: NSObject, Codable {
         didSet { snippets.forEach { $0.folder = self } }
     }
 
-    var isInvalidated: Bool {
-        return false
-    }
 
 }
 

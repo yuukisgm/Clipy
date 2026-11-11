@@ -19,7 +19,6 @@ struct Constants {
         #else
             static let name = "Clipy"
         #endif
-        static let appcastURL = URL(string: "https://clipy-app.com/appcast.xml")!
     }
 
     struct Menu {
@@ -29,11 +28,6 @@ struct Constants {
     }
 
     struct Common {
-        static let index = "index"
-        static let title = "title"
-        static let snippets = "snippets"
-        static let content = "content"
-        static let selector = "selector"
         static let draggedDataType = "public.data"
     }
 
@@ -41,12 +35,7 @@ struct Constants {
         static let hotKeys = "kCPYPrefHotKeysKey"
         static let storeTypes = "kCPYPrefStoreTypesKey"
         static let suppressAlertForLoginItem = "suppressAlertForLoginItem"
-        static let suppressAlertForDeleteSnippet = "kCPYSuppressAlertForDeleteSnippet"
         static let excludeApplications = "kCPYExcludeApplications"
-    }
-
-    struct Notification {
-        static let closeSnippetEditor = "kCPYSnippetEditorWillCloseNotification"
     }
 
     struct Config {

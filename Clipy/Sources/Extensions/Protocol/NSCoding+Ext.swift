@@ -33,12 +33,6 @@ extension NSCoding {
         }
     }
 
-    func archive(toFilePath filePath: String) {
-        do {
-            let data = try NSKeyedArchiver.archivedData(withRootObject: self, requiringSecureCoding: false)
-            try data.write(to: .init(fileURLWithPath: filePath))
-        } catch { lError(error) }
-    }
 }
 
 extension Array where Element: NSCoding {
@@ -49,21 +43,5 @@ extension Array where Element: NSCoding {
             lError(error)
             return nil
         }
-    }
-}
-
-extension UserDefaults {
-    func setArchiveObject<T: NSCoding>(_ object: T, forKey key: String) {
-        if let data = object.archive() {
-            set(data, forKey: key)
-        }
-    }
-
-    func archiveObject<T: NSCoding>(forKey key: String, with type: T.Type) -> T? {
-        guard
-            let data = object(forKey: key) as? Data,
-            let object = data.unarchive() as? T
-        else { return nil }
-        return object
     }
 }

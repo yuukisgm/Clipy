@@ -19,7 +19,6 @@ import Screeen
 import RxScreeen
 import LetsMove
 import LaunchAtLogin
-import PINCache
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSMenuItemValidation {
@@ -97,36 +96,6 @@ class AppDelegate: NSObject, NSMenuItemValidation {
         AppEnvironment.current.clipService.clearAll()
     }
 
-    @objc func selectClipMenuItem(_ sender: NSMenuItem) {
-        guard let primaryKey = sender.representedObject as? String else {
-            lError("Cannot fetch clip primary key")
-            NSSound.beep()
-            return
-        }
-        guard let clip = SQLiteClipStore.shared.clip(dataHash: primaryKey, previewLength: 10000) else {
-            lError("Cannot fetch clip data")
-            NSSound.beep()
-            return
-        }
-
-        AppEnvironment.current.pasteService.paste(with: clip)
-    }
-
-    @objc func selectSnippetMenuItem(_ sender: AnyObject) {
-        guard let primaryKey = sender.representedObject as? String else {
-            lError("Cannot fetch snippet primary key")
-            NSSound.beep()
-            return
-        }
-        guard let snippet = SQLiteClipStore.shared.snippet(identifier: primaryKey) else {
-            lError("Cannot fetch snippet data")
-            NSSound.beep()
-            return
-        }
-        AppEnvironment.current.pasteService.copyToPasteboard(with: snippet.content)
-        AppEnvironment.current.pasteService.paste()
-    }
-
     // MARK: - Login Item Methods
     private func promptToAddLoginItems() {
         let alert = NSAlert()
@@ -151,14 +120,7 @@ class AppDelegate: NSObject, NSMenuItemValidation {
     }
 
     private func toggleAddingToLoginItems(_ isEnable: Bool) {
-        if #available(macOS 10.13, *) {
-            LaunchAtLogin.isEnabled = isEnable
-        } else {
-            let appPath = Bundle.main.bundlePath
-            LoginServiceKit.removeLoginItems(at: appPath)
-            guard isEnable else { return }
-            LoginServiceKit.addLoginItems(at: appPath)
-        }
+        LaunchAtLogin.isEnabled = isEnable
     }
 
     private func reflectLoginItemState() {
@@ -177,12 +139,6 @@ extension AppDelegate: NSApplicationDelegate {
         CPYUtilities.registerUserDefaultKeys()
         // Check Accessibility Permission
         AppEnvironment.current.accessibilityService.isAccessibilityEnabled(isPrompt: true)
-        // PINCache memoryCache の上限を最低限に絞る。default は青天井のため画像コピーで膨張する。
-        // サムネイルは数百 KB なので 5MB あれば直近十数件は memoryCache に残り、
-        // それ以上は diskCache 経由になる。「軽さ」優先の運用方針。
-        PINCache.shared.memoryCache.removeAllObjectsOnEnteringBackground = true
-        PINCache.shared.memoryCache.costLimit = 5 * 1024 * 1024  // 5MB
-
         // Show Login Item
         #if RELEASE
         if !AppEnvironment.current.defaults.bool(forKey: Preferences.General.loginItem) && !AppEnvironment.current.defaults.bool(forKey: Constants.UserDefaults.suppressAlertForLoginItem) {

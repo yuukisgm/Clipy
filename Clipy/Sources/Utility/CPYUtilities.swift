@@ -34,8 +34,6 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: 15), forKey: Preferences.Menu.numberOfItemsPlaceInline)
         defaultValues.updateValue(NSNumber(value: 15), forKey: Preferences.Menu.numberOfItemsPlaceInsideFolder)
 
-        defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.showIconInTheMenu)
-
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.addNumericKeyEquivalents)
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Menu.menuItemsAreMarkedWithNumbers)
 
@@ -47,10 +45,6 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.showColorPreviewInTheMenu)
 
         defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Menu.showImageInTheMenu)
-
-        /* Updates */
-        defaultValues.updateValue(NSNumber(value: true), forKey: Preferences.Update.enableAutomaticCheck)
-        defaultValues.updateValue(NSNumber(value: 86400), forKey: Preferences.Update.checkInterval)
 
         /* Beta */
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.pastePlainTextByDefault)
@@ -64,12 +58,6 @@ final class CPYUtilities {
 
         AppEnvironment.current.defaults.register(defaults: defaultValues)
         AppEnvironment.current.defaults.synchronize()
-    }
-
-    static func applicationSupportFolder() -> String {
-        let paths = NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)
-        let basePath: String = paths.first ?? NSTemporaryDirectory()
-        return (basePath as NSString).appendingPathComponent(Constants.Application.name)
     }
 
     static func sqliteApplicationSupportFolder() -> String {
