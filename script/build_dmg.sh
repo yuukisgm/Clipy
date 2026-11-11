@@ -20,6 +20,7 @@ WHICH="${1:-both}"
 # 孤立が起きる。固定 ID で署名すれば DR が安定し、更新が同一アプリ扱いになる。
 # 環境変数 SIGN_IDENTITY で上書き可。空文字にするとアドホックにフォールバック。
 SIGN_IDENTITY="${SIGN_IDENTITY:-Clipy Signing}"
+ENTITLEMENTS="$ROOT/Clipy/Supporting Files/Clipy.entitlements"
 
 build_arch() {
     local ARCH="$1"
@@ -63,13 +64,19 @@ build_arch() {
     cp -R "$APP" "$STAGE/Clipy.app"
     xattr -cr "$STAGE/Clipy.app"
 
+    # Hardened Runtime を有効にして署名する（DYLD_INSERT_LIBRARIES 等による注入を拒否）。
+    # 自己署名には Team ID が無く、同梱フレームワークがライブラリ検証で弾かれて起動
+    # できなくなるため、本体にだけ disable-library-validation を付ける。
+    # --deep に --entitlements を足すと同梱フレームワークにも付くので 2 段階に分ける。
+    local IDENTITY="${SIGN_IDENTITY:--}"
     if [ -n "$SIGN_IDENTITY" ]; then
         echo "==> Signing with: $SIGN_IDENTITY"
-        codesign --force --deep --sign "$SIGN_IDENTITY" "$STAGE/Clipy.app"
     else
         echo "==> Ad-hoc signing (SIGN_IDENTITY empty)"
-        codesign --force --deep --sign - "$STAGE/Clipy.app"
     fi
+    codesign --force --deep --options runtime --sign "$IDENTITY" "$STAGE/Clipy.app"
+    codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$STAGE/Clipy.app"
+    codesign --verify --deep --strict "$STAGE/Clipy.app"
     codesign -dvvv "$STAGE/Clipy.app" 2>&1 | grep -E "Authority=|TeamIdentifier=" | head -2 || true
 
     ln -s /Applications "$STAGE/Applications"
