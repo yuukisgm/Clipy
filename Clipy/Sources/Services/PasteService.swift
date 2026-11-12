@@ -182,6 +182,7 @@ extension PasteService {
 
         let vKeyCode = Sauce.shared.keyCode(for: .v)
         let bundleIdentifier = targetBundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let entered = Date()
         if let app = Self.virtualMachineApp(bundleIdentifier: bundleIdentifier) {
             // Parallels 27 forwards a synthesized Cmd+V to the guest as raw keys and drops
             // Command about half the time ("v" is typed). Its own Edit > Paste menu item syncs
@@ -189,7 +190,7 @@ extension PasteService {
             Self.pressPasteMenuItem(of: app, attempt: 1, fallbackKeyCode: vKeyCode)
             return
         }
-        Self.whenReadyForKeys(bundleIdentifier: targetBundleIdentifier, attempt: 1) {
+        let post = {
             let source = CGEventSource(stateID: .combinedSessionState)
             // Disable local keyboard events while pasting
             source?.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateSuppressionInterval)
@@ -202,27 +203,56 @@ extension PasteService {
             }
             Self.postPasteCommand(source: source, vKeyCode: vKeyCode)
         }
+        Self.whenReadyForKeys(bundleIdentifier: targetBundleIdentifier, attempt: 1) {
+            guard Self.isRemoteDesktopClient(bundleIdentifier: bundleIdentifier) else {
+                post()
+                return
+            }
+            // The transfer starts when the client is activated, so time spent waiting for
+            // readiness already counts towards the delay.
+            let remaining = max(0, Self.remoteDesktopPasteDelay - Date().timeIntervalSince(entered))
+            DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: post)
+        }
+    }
+
+    // MARK: - Remote Desktop
+    /// A remote desktop client sends the pasteboard to the remote side when it is activated.
+    /// A Cmd+V that reaches the remote side before or during that transfer pastes the previous
+    /// content or nothing, and there is no way to observe when the transfer has finished.
+    /// The right value depends on the connection, so it is read from the defaults (0...1 second).
+    private static var remoteDesktopPasteDelay: TimeInterval {
+        let delay = AppEnvironment.current.defaults.double(forKey: Preferences.Beta.remoteDesktopPasteDelay)
+        return min(max(delay, 0), 1)
+    }
+
+    private static func isRemoteDesktopClient(bundleIdentifier: String?) -> Bool {
+        // Jump Desktop: "com.p5sys.jump.mac.viewer" (App Store) and "….viewer.web" (direct download)
+        return bundleIdentifier?.hasPrefix("com.p5sys.jump.mac.viewer") == true
     }
 
     // MARK: - Target Readiness
-    private static let readyForKeysPollInterval: TimeInterval = 0.02
+    // Targets become ready 10-30ms after the activation notice (measured), so poll finely.
+    private static let readyForKeysPollInterval: TimeInterval = 0.005
     private static let readyForKeysQueryTimeout: Float = 0.05
-    private static let readyForKeysMaxAttempts = 8
+    private static let readyForKeysMaxWait: TimeInterval = 0.5
 
     /// The workspace reports the target as activated before the target itself has handled the
     /// activation. A Cmd+V arriving in that gap finds no key window and is dropped (the clip is
     /// on the pasteboard but nothing is pasted; seen with Electron apps). Wait until the target
     /// says it is frontmost, then post. Gives up after ~0.5s and posts anyway, as before.
-    private static func whenReadyForKeys(bundleIdentifier: String?, attempt: Int, _ post: @escaping () -> Void) {
+    private static func whenReadyForKeys(bundleIdentifier: String?,
+                                         attempt: Int,
+                                         giveUpAt: Date = Date().addingTimeInterval(readyForKeysMaxWait),
+                                         _ post: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 1 ? 0 : readyForKeysPollInterval)) {
-            guard attempt < readyForKeysMaxAttempts,
+            guard Date() < giveUpAt,
                   let bundleIdentifier = bundleIdentifier,
                   let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first,
                   !app.isActive || isHandlingKeys(app) == false else {
                 post()
                 return
             }
-            whenReadyForKeys(bundleIdentifier: bundleIdentifier, attempt: attempt + 1, post)
+            whenReadyForKeys(bundleIdentifier: bundleIdentifier, attempt: attempt + 1, giveUpAt: giveUpAt, post)
         }
     }
 

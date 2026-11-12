@@ -1371,14 +1371,18 @@ final class ClipSearchPanelController: NSObject {
     }
 
     private func pasteSnippetToApp(_ targetApp: NSRunningApplication?, snippet: CPYSnippet) {
-        let paste = {
-            AppEnvironment.current.pasteService.copyToPasteboard(with: snippet.content)
-            AppEnvironment.current.pasteService.paste()
-        }
+        // Write the pasteboard before the target is activated: remote desktop clients (Jump Desktop)
+        // sync it to the remote side on activation, and a Cmd+V sent before that sync finishes
+        // pastes the previous content.
+        AppEnvironment.current.pasteService.copyToPasteboard(with: snippet.content)
 
         guard let targetApp = focusOwnTargetWindow() ? nil : targetApp else {
-            paste()
+            AppEnvironment.current.pasteService.paste()
             return
+        }
+        // Same route as history clips, so the target's readiness and per-app handling apply.
+        let paste = {
+            AppEnvironment.current.pasteService.paste(targetBundleIdentifier: targetApp.bundleIdentifier)
         }
 
         var token: Any?

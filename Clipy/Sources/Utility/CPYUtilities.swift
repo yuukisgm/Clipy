@@ -55,6 +55,7 @@ final class CPYUtilities {
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.pasteAndDeleteHistory)
         defaultValues.updateValue(NSNumber(value: 1), forKey: Preferences.Beta.pasteAndDeleteHistoryModifier)
         defaultValues.updateValue(NSNumber(value: false), forKey: Preferences.Beta.observerScreenshot)
+        defaultValues.updateValue(NSNumber(value: 0.1), forKey: Preferences.Beta.remoteDesktopPasteDelay)
 
         AppEnvironment.current.defaults.register(defaults: defaultValues)
         AppEnvironment.current.defaults.synchronize()

@@ -54,5 +54,7 @@ struct Preferences {
         static let pasteAndDeleteHistoryModifier = "kCPYBetapasteAndDeleteHistoryModifier"
 
         static let observerScreenshot = "kCPYBetaObserveScreenshot"
+        // Seconds. No UI; tune with `defaults write com.yuukisgm.clipy kCPYBetaRemoteDesktopPasteDelay -float 0.2`.
+        static let remoteDesktopPasteDelay = "kCPYBetaRemoteDesktopPasteDelay"
     }
 }
